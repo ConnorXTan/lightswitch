@@ -39,7 +39,7 @@ typedef struct {
 
 static const scenario SCENARIOS[] = {
     { "idle", "quiet room, nothing happening", 30000, 4830, 4830,
-      {{0}}, 0 },
+      {{0, 0, 0}}, 0 },
 
     /* Cover durations here are what a deliberate gesture actually looks like.
      * Anything much under ~400 ms is shorter than two sensor refreshes and is
@@ -57,7 +57,7 @@ static const scenario SCENARIOS[] = {
       {{4000, 5200, 0.72}, {9000, 11000, 0.83}, {15000, 15600, 0.66}}, 3 },
 
     { "drift", "daylight fading from 4830 to 2400 lux over five minutes",
-      300000, 4830, 2400, {{0}}, 0 },
+      300000, 4830, 2400, {{0, 0, 0}}, 0 },
 
     { "dark", "a room too dim to work in", 10000, 12, 12,
       {{5000, 5500, 0.02}}, 1 },

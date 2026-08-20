@@ -522,7 +522,9 @@ int main(int argc, char **argv)
 
                 if (act) {
                     if (ls_action_run(action, err, sizeof(err)) != 0)
-                        snprintf(line + p, sizeof line - p, " -> FAILED: %s", err);
+                        /* %.128s: err can be 255 bytes, more than fits in line;
+                         * cap it so gcc can prove the truncation is deliberate. */
+                        snprintf(line + p, sizeof line - p, " -> FAILED: %.128s", err);
                     else
                         snprintf(line + p, sizeof line - p, " -> %s",
                                  ls_action_describe(action));
