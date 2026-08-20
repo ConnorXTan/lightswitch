@@ -54,12 +54,46 @@ Each fixture is a scenario; the lines under it are what was recognised.
 `walk_past` is someone crossing the room and `drift` is daylight fading over
 five minutes; both dim the sensor substantially and neither is a gesture.
 
-`make test` runs the full suite (200 assertions) on any Unix machine, sensor or
+`make test` runs the full suite (223 assertions) on any Unix machine, sensor or
 not. That is the point of the layering — see [Architecture](#architecture).
 
 `--replay` selects the *source*, not a mode, so it composes with the rest:
 `--monitor --replay FILE` watches a recording play back, and
 `--calibrate --replay FILE` recomputes the sensor statistics from one.
+
+## Watching it work
+
+`--monitor` draws the signal against the thresholds it has to cross, because
+the interesting failure is never a wrong decision — it is a gesture the
+detector was never given the chance to see.
+
+```
+   66 │────────────────────────────────────────────────────────  baseline
+   49 │┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  release
+      │▃▃▃▃▃▃▃▃         ▁▁▂▂▃▃▁▁▁▁▃▃▂▂▂▂▂▂▁▁▁▁▁▁▂▂▂▂▃▃▂▂▁▁▁▁▁▁
+   30 │┄┄┄┄┄┄┄┄██┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  cover
+      └────────────────────────────────────────────────────────
+       -9s                                                  now
+
+       37 lux   base 66   state spent         uncover to re-arm
+  signal  ███████████████████████████│██████···········│······   56%
+                                     ^cover            ^release
+
+  ▲ stalled between the thresholds for 11s: 56% of baseline is below release
+    (75%) but above cover (45%), so nothing can complete. Usually
+    auto-brightness dimming the screen.
+```
+
+The trace is coloured by detector state, so you can see what the state machine
+believed at each sample rather than inferring it. The line at the bottom is the
+part worth having: a signal that sits between the two thresholds can never
+complete an edge, and the detector will look broken while behaving correctly.
+Naming that costs one function, [`ls_diag`](src/ui.c), which is pure and
+unit-tested like the rest of the recognition path.
+
+It degrades on purpose. If stdout is not a terminal the whole escape-sequence
+layer switches off and gestures print one per line, so `--monitor | tee log`
+produces a log rather than a recording of cursor movements.
 
 ## Install
 
@@ -76,7 +110,7 @@ Only a C11 compiler is needed. No dependencies.
 
 ```bash
 lightswitch                       # dry run: recognises and prints, acts on nothing
-lightswitch --monitor             # live signal view, for aiming and tuning
+lightswitch --monitor             # live view: signal, thresholds, diagnosis
 lightswitch --calibrate           # measure your sensor and check your room
 lightswitch --on-hold key:cmd+w   # bind a gesture and arm it
 ```

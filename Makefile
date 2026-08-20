@@ -32,14 +32,14 @@ endif
 LDLIBS := -lm
 
 CORE_SRC := src/detector.c src/config.c src/action.c src/trace.c \
-            src/sensor.c src/sensor_replay.c
+            src/sensor.c src/sensor_replay.c src/ui.c
 APP_SRC  := $(CORE_SRC) $(PLATFORM_SRC) src/main.c
 
 CORE_OBJ := $(patsubst src/%.c,$(BUILD)/%.o,$(CORE_SRC))
 APP_OBJ  := $(patsubst src/%.c,$(BUILD)/%.o,$(APP_SRC))
 
 TEST_SRC := tests/test_detector.c tests/test_config.c tests/test_action.c \
-            tests/test_trace.c
+            tests/test_trace.c tests/test_ui.c
 TEST_BIN := $(patsubst tests/%.c,$(BUILD)/%,$(TEST_SRC))
 
 TRACES := idle tap double_tap hold walk_past drift dark office_session

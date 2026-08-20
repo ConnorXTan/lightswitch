@@ -14,6 +14,7 @@
 #include "detector.h"
 #include "sensor.h"
 #include "trace.h"
+#include "ui.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -110,25 +111,6 @@ static const ls_action *action_for(const ls_config *c, ls_gesture g)
     case LS_GESTURE_NONE:       break;
     }
     return NULL;
-}
-
-static void draw_monitor(const ls_detector *d, double lux)
-{
-    static const int WIDTH = 28;
-    double ratio = ls_detector_ratio(d);
-    if (ratio < 0.0) ratio = 0.0;
-    if (ratio > 1.0) ratio = 1.0;
-
-    int filled = (int)(ratio * WIDTH + 0.5);
-    char bar[64];
-    for (int i = 0; i < WIDTH; i++)
-        bar[i] = i < filled ? '#' : ' ';
-    bar[WIDTH] = '\0';
-
-    printf("\r%8.0f lux  base %7.0f  [%s] %5.1f%%  %-12s",
-           lux, ls_detector_baseline(d), bar,
-           ls_detector_ratio(d) * 100.0, ls_state_name(ls_detector_state(d)));
-    fflush(stdout);
 }
 
 /* Measure the sensor rather than assuming.
@@ -456,6 +438,21 @@ int main(int argc, char **argv)
                     cfg.detector.calibration_ms / 1000.0);
     }
 
+    /* The live view owns the terminal from here on, which is why it is opened
+     * after the banner above rather than with the rest of the setup. */
+    ls_ui *ui = NULL;
+    if (mode == MODE_MONITOR && !quiet) {
+        ui = ls_ui_open(out, ls_sensor_kind(sensor), act);
+        if (!ui) {
+            fprintf(stderr, "lightswitch: out of memory\n");
+            ls_sensor_close(sensor);
+            return 1;
+        }
+        ls_ui_binding(ui, LS_GESTURE_TAP,        ls_action_describe(&cfg.on_tap));
+        ls_ui_binding(ui, LS_GESTURE_DOUBLE_TAP, ls_action_describe(&cfg.on_double_tap));
+        ls_ui_binding(ui, LS_GESTURE_HOLD,       ls_action_describe(&cfg.on_hold));
+    }
+
     int   calibrated = 0;
     long  gestures = 0;
     int   exit_code = 0;
@@ -484,53 +481,69 @@ int main(int argc, char **argv)
             exit_code = 1;
             break;
         }
+        if (ui)
+            ls_ui_sample(ui, t, lux, &det);
+
         if (!calibrated && ls_detector_state(&det) != LS_STATE_CALIBRATING) {
             calibrated = 1;
-            if (!quiet) {
+            if (!quiet && !ls_ui_is_visual(ui)) {
                 double base = ls_detector_baseline(&det);
                 fprintf(stderr,
                         "baseline %.0f lux | cover below %.0f | release above %.0f\n",
                         base, base * cfg.detector.cover_ratio,
                         base * cfg.detector.uncover_ratio);
-                if (mode == MODE_MONITOR)
-                    fprintf(stderr, "\n");
-                else
-                    fprintf(stderr, "\nReady. Cup your hand over the top of the screen.\n\n");
+                fprintf(stderr, "\nReady. Cup your hand over the top of the screen.\n\n");
             }
         }
 
-        if (mode == MODE_MONITOR && calibrated && !quiet)
-            draw_monitor(&det, lux);
+        if (ui)
+            ls_ui_render(ui);
 
         if (g != LS_GESTURE_NONE) {
             gestures++;
-            if (mode == MODE_MONITOR && !quiet)
-                fprintf(out, "\n");
 
             const ls_action *action = action_for(&cfg, g);
             int bound = action && action->kind != LS_ACTION_NONE;
 
-            /* Pad the gesture name only when something follows it, so an
-             * unbound gesture does not leave trailing spaces in a log. */
-            fprintf(out, "[%7.1fs] %s", t / 1000.0, ls_gesture_name(g));
+            /* Build the line once. Whether it belongs on a plain stream or in
+             * the live view is the sink's problem, not this loop's. */
+            char line[192];
+            int  p = snprintf(line, sizeof line, "[%7.1fs] %s",
+                              t / 1000.0, ls_gesture_name(g));
+            if (p < 0 || p >= (int)sizeof line) p = (int)sizeof line - 1;
+
             if (bound) {
-                fprintf(out, "%*s", (int)(11 - strlen(ls_gesture_name(g))), "");
+                /* Pad the gesture name only when something follows it, so an
+                 * unbound gesture leaves no trailing spaces in a log. */
+                int pad = (int)(11 - strlen(ls_gesture_name(g)));
+                int n = snprintf(line + p, sizeof line - p, "%*s", pad, "");
+                if (n > 0) p += n;
+                if (p >= (int)sizeof line) p = (int)sizeof line - 1;
+
                 if (act) {
                     if (ls_action_run(action, err, sizeof(err)) != 0)
-                        fprintf(out, " -> FAILED: %s", err);
+                        snprintf(line + p, sizeof line - p, " -> FAILED: %s", err);
                     else
-                        fprintf(out, " -> %s", ls_action_describe(action));
+                        snprintf(line + p, sizeof line - p, " -> %s",
+                                 ls_action_describe(action));
                 } else {
-                    fprintf(out, " -> would run %s", ls_action_describe(action));
+                    snprintf(line + p, sizeof line - p, " -> would run %s",
+                             ls_action_describe(action));
                 }
             }
-            fprintf(out, "\n");
-            fflush(out);
+
+            if (ui) {
+                ls_ui_count(ui, g);
+                ls_ui_gesture(ui, t, line);   /* prints plainly when not a tty */
+                ls_ui_render(ui);
+            } else {
+                fprintf(out, "%s\n", line);
+                fflush(out);
+            }
         }
     }
 
-    if (mode == MODE_MONITOR && calibrated && !quiet)
-        fprintf(out, "\n");
+    ls_ui_close(ui);
 
     if (rec && ls_trace_close_write(rec) != 0) {
         fprintf(stderr, "lightswitch: failed closing trace\n");
