@@ -1,0 +1,81 @@
+# lightswitch configuration
+#
+# Copy to ~/.config/lightswitch/config. Every setting here can also be given
+# on the command line as --set key=value, which wins over the file.
+#
+# Run `lightswitch --calibrate` first: it measures your sensor and your room
+# and tells you whether the defaults have enough margin.
+
+# ---------------------------------------------------------------- bindings
+#
+#   none          recognise and log, but do nothing
+#   key:COMBO     send a keystroke to the focused app (needs Accessibility
+#                 permission; `lightswitch --list-keys` lists key names)
+#   exec:CMD      run CMD with /bin/sh, detached
+#
+# Prefer binding `hold` for anything that should feel instant: it fires while
+# your hand is still over the sensor. A tap cannot be recognised until the
+# double-tap window has expired. See docs/SIGNAL.md.
+
+on_tap        = none
+on_double_tap = none
+on_hold       = key:cmd+w
+
+# Other things people bind:
+#   on_hold       = exec:pmset displaysleepnow
+#   on_double_tap = exec:open -a "Activity Monitor"
+#   on_tap        = key:cmd+shift+4
+
+# ---------------------------------------------------------------- detection
+#
+# Thresholds are fractions of a running ambient baseline, never absolute lux,
+# so the same numbers work in a dim room and in bright sunlight.
+
+# Enter "covered" below this fraction of baseline. Lower = a deeper shadow is
+# required = harder to trigger by accident. Someone walking past the machine
+# dims the sensor by 20-35%, so anything above ~0.7 will false-trigger.
+cover_ratio = 0.45
+
+# Leave "covered" above this fraction. The gap between the two makes the
+# trigger a Schmitt trigger, so a signal sitting near the threshold cannot
+# chatter. Must be greater than cover_ratio.
+uncover_ratio = 0.75
+
+# Polls that must agree before the cover state flips. This has to span more
+# than one sensor refresh (~211 ms) or consecutive polls can return the same
+# latched reading and the debounce rejects nothing. 3 x 100 ms = 300 ms.
+debounce_samples = 3
+
+# How often to read the sensor. There is little point going below ~200 ms;
+# the hardware only refreshes about 4.7 times a second.
+poll_ms = 100
+
+# ----------------------------------------------------------------- timing
+
+# Cover held at least this long is a hold rather than a tap.
+hold_ms = 1100
+
+# A second cover starting within this long after a release makes a double-tap.
+# Set to 0 to disable double-tap entirely, which lets taps fire as soon as you
+# lift your hand (roughly halving tap latency).
+double_gap_ms = 600
+
+# Ignore new gestures for this long after firing one; mostly catches an untidy
+# hand lift being read as a second gesture.
+refractory_ms = 700
+
+# ---------------------------------------------------------------- ambient
+
+# Seconds of averaging at startup to establish the baseline. Do not shade the
+# sensor during this.
+calibration_ms = 2000
+
+# Refuse to run below this many lux. In a darker room a hand shadow is not
+# distinguishable from the room itself.
+min_baseline_lux = 25
+
+# How fast the baseline follows ambient drift, per sample. 0.005 at 10 Hz is a
+# time constant of about 20 seconds: fast enough to track daylight fading,
+# slow enough that a hand resting on the sensor cannot drag the baseline down
+# onto itself. Raise it for a room whose lighting changes quickly.
+baseline_alpha = 0.005

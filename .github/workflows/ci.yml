@@ -1,0 +1,47 @@
+name: ci
+
+# The detector, config, action parsing and trace layers are platform
+# independent, so the Linux job is a real test run rather than a formality:
+# it exercises everything except the IOKit backend and keystroke injection.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / ${{ matrix.cc }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        cc: [clang, gcc]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and test with warnings as errors
+        env:
+          CC: ${{ matrix.cc }}
+        run: make ci
+
+      - name: Replay fixtures through the built binary
+        run: make demo
+
+      - name: Verify committed fixtures match the generator
+        run: |
+          make traces
+          git diff --exit-code tests/traces \
+            || (echo "tests/traces is stale — run 'make traces' and commit"; exit 1)
+
+  sanitizers:
+    name: sanitizers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Address and undefined-behaviour sanitizers
+        run: |
+          make clean
+          make CFLAGS="-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer" test
+          make CFLAGS="-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer" demo

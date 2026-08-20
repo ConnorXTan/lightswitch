@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Run lightswitch at login.
+
+    cp examples/com.lightswitch.agent.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.lightswitch.agent.plist
+
+  To stop it:
+
+    launchctl unload ~/Library/LaunchAgents/com.lightswitch.agent.plist
+
+  Bindings come from ~/.config/lightswitch/config, so this file does not need
+  editing when you change what a gesture does. If you bind a key: action, grant
+  Accessibility permission to the lightswitch binary the first time it fires.
+
+  Note that KeepAlive is deliberately conditional: lightswitch exits non-zero
+  when the room is too dark to arm, and restarting it in a loop at 3am would
+  just burn CPU. SuccessfulExit=false restarts it after a crash but not after
+  that clean refusal.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lightswitch.agent</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/lightswitch</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/lightswitch.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/lightswitch.err</string>
+</dict>
+</plist>
