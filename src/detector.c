@@ -9,6 +9,8 @@ const char *ls_gesture_name(ls_gesture g)
     case LS_GESTURE_TAP:        return "tap";
     case LS_GESTURE_DOUBLE_TAP: return "double-tap";
     case LS_GESTURE_HOLD:       return "hold";
+    case LS_GESTURE_ON:         return "on";
+    case LS_GESTURE_OFF:        return "off";
     case LS_GESTURE_NONE:       break;
     }
     return "none";
@@ -49,6 +51,7 @@ void ls_detector_config_defaults(ls_detector_config *cfg)
     cfg->double_gap_ms    = 600.0;
     cfg->refractory_ms    = 700.0;
     cfg->baseline_alpha   = 0.005;
+    cfg->switch_mode      = 0;
 }
 
 int ls_detector_config_validate(const ls_detector_config *cfg,
@@ -176,7 +179,24 @@ ls_gesture ls_detector_push(ls_detector *d, double t_ms, double lux)
 
     ls_gesture out = LS_GESTURE_NONE;
 
-    switch (d->state) {
+    if (d->cfg.switch_mode) {
+        /* Switch mode: the debounced cover flag IS the output. No windows to
+         * wait out, so an edge fires the moment the debounce confirms it —
+         * ~300 ms after the hand, which is as fast as this sensor can go.
+         * The refractory window is not needed: the Schmitt gap plus debounce
+         * already guarantee edges alternate cleanly. */
+        if (flipped) {
+            if (d->covered) {
+                d->t_cover_start = t_ms;
+                d->state = LS_STATE_COVERED;
+                out = LS_GESTURE_ON;
+            } else {
+                d->t_release = t_ms;
+                d->state = LS_STATE_IDLE;
+                out = LS_GESTURE_OFF;
+            }
+        }
+    } else switch (d->state) {
     case LS_STATE_IDLE:
         if (flipped && d->covered) {
             if (refractory) {

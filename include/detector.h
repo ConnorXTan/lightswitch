@@ -21,7 +21,9 @@ typedef enum {
     LS_GESTURE_NONE = 0,
     LS_GESTURE_TAP,
     LS_GESTURE_DOUBLE_TAP,
-    LS_GESTURE_HOLD
+    LS_GESTURE_HOLD,
+    LS_GESTURE_ON,       /* switch mode only: cover confirmed   */
+    LS_GESTURE_OFF       /* switch mode only: release confirmed */
 } ls_gesture;
 
 const char *ls_gesture_name(ls_gesture g);
@@ -36,6 +38,9 @@ typedef struct {
     double double_gap_ms;    /* second cover within this of release => DOUBLE*/
     double refractory_ms;    /* ignore new gestures this long after emitting */
     double baseline_alpha;   /* EMA weight for ambient drift, uncovered only */
+    int    switch_mode;      /* 1: emit ON/OFF at the cover edges and skip
+                                the tap/double-tap/hold machine entirely —
+                                the fastest response the sensor can give     */
 } ls_detector_config;
 
 void ls_detector_config_defaults(ls_detector_config *cfg);

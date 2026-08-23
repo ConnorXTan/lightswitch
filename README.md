@@ -54,7 +54,7 @@ Each fixture is a scenario; the lines under it are what was recognised.
 `walk_past` is someone crossing the room and `drift` is daylight fading over
 five minutes; both dim the sensor substantially and neither is a gesture.
 
-`make test` runs the full suite (223 assertions) on any Unix machine, sensor or
+`make test` runs the full suite (304 assertions) on any Unix machine, sensor or
 not. That is the point of the layering — see [Architecture](#architecture).
 
 `--replay` selects the *source*, not a mode, so it composes with the rest:
@@ -110,6 +110,8 @@ Only a C11 compiler is needed. No dependencies.
 
 ```bash
 lightswitch                       # dry run: recognises and prints, acts on nothing
+lightswitch --overlay             # glow around the notch; hold your hand there
+                                  # to pause the music (the out-of-box demo)
 lightswitch --monitor             # live view: signal, thresholds, diagnosis
 lightswitch --calibrate           # measure your sensor and check your room
 lightswitch --on-hold key:cmd+w   # bind a gesture and arm it
@@ -122,6 +124,17 @@ Bind gestures with `--on-tap`, `--on-double-tap`, `--on-hold`, each taking:
 | `none` | recognise and log, do nothing |
 | `key:cmd+w` | send a keystroke to the focused app (`--list-keys` for names) |
 | `exec:CMD` | run `CMD` with `/bin/sh` |
+| `media:playpause` | press a media key: `playpause`, `next`, `prev`, `mute` |
+
+**Or skip gestures entirely.** `--switch` turns the sensor into a plain
+on/off switch: covering it fires `on`, uncovering fires `off` — bound with
+`--on-cover` / `--on-uncover` (binding either implies `--switch`). There is
+nothing to wait out, so each edge fires at the debounce limit, ~300 ms after
+your hand — roughly a second faster than a tap can ever be:
+
+```bash
+lightswitch --on-cover media:playpause    # cover the notch to toggle the music
+```
 
 Settings live in `~/.config/lightswitch/config`, and any of them can be
 overridden with `--set key=value`:
@@ -177,10 +190,13 @@ The layering exists so the interesting logic is testable without hardware:
 | --- | --- | --- |
 | `src/detector.c` | baseline tracking, Schmitt trigger, gesture state machine | yes |
 | `src/config.c` | one key/value namespace shared by file and CLI | yes |
-| `src/action.c` | parse `key:`/`exec:` specs; run them | parsing yes, keystrokes macOS |
+| `src/action.c` | parse `key:`/`exec:`/`media:` specs; run them | parsing yes, running macOS |
 | `src/trace.c` | record/replay format | yes |
+| `src/glow.c` | the overlay's look as a pure function of the signal | yes |
 | `src/sensor_iokit.c` | the real sensor, via private IOKit HID symbols | macOS only |
 | `src/sensor_replay.c` | a recorded trace, same interface | yes |
+| `src/overlay_macos.m` | the notch glow window; draws what `glow.c` decides | macOS only |
+| `src/mediakey_macos.m` | posts media key events for `media:` actions | macOS only |
 
 `detector.c` performs no I/O and calls nothing platform-specific: it takes
 `(timestamp, lux)` and returns gestures. Everything awkward about the signal —
@@ -194,7 +210,7 @@ proportional noise, and the finite time a hand takes to arrive. Regenerate with
 `make traces`.
 
 ```
-make        build            make test     198 assertions, no hardware needed
+make        build            make test     304 assertions, no hardware needed
 make demo   replay fixtures  make traces   regenerate fixtures
 make ci     -Werror + tests  make install  to $(PREFIX)/bin
 ```
@@ -203,8 +219,10 @@ make ci     -Werror + tests  make install  to $(PREFIX)/bin
 
 - Turn off **System Settings → Displays → "Automatically adjust brightness"**,
   or macOS dims the screen as you shade the sensor and fights the detection.
-- `key:` actions need Accessibility permission (**Privacy & Security →
-  Accessibility**). `exec:` actions do not.
+- `key:` and `media:` actions need Accessibility permission (**Privacy &
+  Security → Accessibility**). `exec:` actions do not.
+- `--overlay` composes with `--replay FILE --realtime`, which is how to demo
+  the glow on a machine with no sensor.
 - Needs a lit room. Below ~25 lux a hand shadow is not distinguishable from the
   room and lightswitch refuses to arm rather than firing at random.
 - A gesture shorter than ~400 ms is shorter than two sensor refreshes and will

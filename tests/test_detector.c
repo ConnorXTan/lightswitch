@@ -328,7 +328,82 @@ static void test_gesture_names_are_stable(void)
     CHECK_STR(ls_gesture_name(LS_GESTURE_TAP), "tap");
     CHECK_STR(ls_gesture_name(LS_GESTURE_DOUBLE_TAP), "double-tap");
     CHECK_STR(ls_gesture_name(LS_GESTURE_HOLD), "hold");
+    CHECK_STR(ls_gesture_name(LS_GESTURE_ON), "on");
+    CHECK_STR(ls_gesture_name(LS_GESTURE_OFF), "off");
     CHECK_STR(ls_gesture_name(LS_GESTURE_NONE), "none");
+}
+
+/* ---- switch mode: cover/uncover as a plain on/off switch ----------- */
+
+static void test_switch_mode_emits_on_off(void)
+{
+    ls_detector_config cfg = base_config();
+    cfg.switch_mode = 1;
+    rig r;
+    rig_init(&r, &cfg, BASELINE);
+    rig_calibrate(&r);
+
+    rig_ms(&r, 1000.0, 0.02);
+    CHECK_EQ(r.nevents, 1);
+    CHECK_EQ(r.events[0], LS_GESTURE_ON);
+    CHECK_EQ(ls_detector_state(&r.d), LS_STATE_COVERED);
+
+    rig_ms(&r, 1000.0, 1.0);
+    CHECK_EQ(r.nevents, 2);
+    CHECK_EQ(r.events[1], LS_GESTURE_OFF);
+    CHECK_EQ(ls_detector_state(&r.d), LS_STATE_IDLE);
+}
+
+static void test_switch_mode_fires_at_the_debounce_limit(void)
+{
+    /* ON must appear after exactly debounce_samples covered samples — no
+     * hold timer, no double-tap window, nothing else to wait for. */
+    ls_detector_config cfg = base_config();
+    cfg.switch_mode = 1;
+    rig r;
+    rig_init(&r, &cfg, BASELINE);
+    rig_calibrate(&r);
+
+    rig_samples(&r, cfg.debounce_samples - 1, 0.02);
+    CHECK_EQ(r.nevents, 0);
+    rig_samples(&r, 1, 0.02);
+    CHECK_EQ(r.nevents, 1);
+    CHECK_EQ(r.events[0], LS_GESTURE_ON);
+}
+
+static void test_switch_mode_never_emits_fsm_gestures(void)
+{
+    /* A choreography that would produce a tap, a double-tap, and a hold in
+     * the normal mode reduces to clean ON/OFF pairs. */
+    ls_detector_config cfg = base_config();
+    cfg.switch_mode = 1;
+    rig r;
+    rig_init(&r, &cfg, BASELINE);
+    rig_calibrate(&r);
+
+    rig_ms(&r, 500.0, 0.02);   rig_ms(&r, 1500.0, 1.0);   /* would be tap  */
+    rig_ms(&r, 450.0, 0.02);   rig_ms(&r, 300.0, 1.0);    /* would be dbl  */
+    rig_ms(&r, 450.0, 0.02);   rig_ms(&r, 1500.0, 1.0);
+    rig_ms(&r, 2000.0, 0.02);  rig_ms(&r, 1000.0, 1.0);   /* would be hold */
+
+    CHECK_EQ(r.nevents, 8);
+    for (int i = 0; i < r.nevents; i++)
+        CHECK_EQ(r.events[i], (i % 2 == 0) ? LS_GESTURE_ON : LS_GESTURE_OFF);
+}
+
+static void test_switch_mode_ignores_shallow_dips(void)
+{
+    /* Someone walking past dims the room well below the release threshold
+     * but not below the cover threshold: still not a press. */
+    ls_detector_config cfg = base_config();
+    cfg.switch_mode = 1;
+    rig r;
+    rig_init(&r, &cfg, BASELINE);
+    rig_calibrate(&r);
+
+    rig_ms(&r, 1200.0, 0.60);
+    rig_ms(&r, 1000.0, 1.0);
+    CHECK_EQ(r.nevents, 0);
 }
 
 TEST_MAIN_BEGIN("detector")
@@ -348,4 +423,8 @@ TEST_MAIN_BEGIN("detector")
     RUN(test_zero_gap_taps_fire_immediately);
     RUN(test_config_validation_rejects_bad_values);
     RUN(test_gesture_names_are_stable);
+    RUN(test_switch_mode_emits_on_off);
+    RUN(test_switch_mode_fires_at_the_debounce_limit);
+    RUN(test_switch_mode_never_emits_fsm_gestures);
+    RUN(test_switch_mode_ignores_shallow_dips);
 TEST_MAIN_END()

@@ -1,4 +1,5 @@
 #include "action.h"
+#include "mediakey.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,6 +46,19 @@ static const key_entry KEYS[] = {
 };
 
 static const size_t NKEYS = sizeof(KEYS) / sizeof(KEYS[0]);
+
+/* NX_KEYTYPE_* values from IOKit's ev_keymap.h, spelled out here so the
+ * table stays plain data on every platform. next/prev use FAST/REWIND —
+ * what the physical F9/F7 keys emit — because players honour those more
+ * reliably than NX_KEYTYPE_NEXT (17) / NX_KEYTYPE_PREVIOUS (18). */
+static const key_entry MEDIA_KEYS[] = {
+    { "playpause", 16 },  /* NX_KEYTYPE_PLAY   */
+    { "next",      19 },  /* NX_KEYTYPE_FAST   */
+    { "prev",      20 },  /* NX_KEYTYPE_REWIND */
+    { "mute",       7 },  /* NX_KEYTYPE_MUTE   */
+};
+
+static const size_t NMEDIA = sizeof(MEDIA_KEYS) / sizeof(MEDIA_KEYS[0]);
 
 int ls_keycode_for_name(const char *name)
 {
@@ -180,8 +194,30 @@ int ls_action_parse(const char *spec, ls_action *out, char *err, size_t errlen)
         return 0;
     }
 
+    if (!strncasecmp(spec, "media:", 6)) {
+        const char *name = spec + 6;
+        while (*name && isspace((unsigned char)*name))
+            name++;
+        if (*name == '\0') {
+            snprintf(err, errlen,
+                     "media: needs a key (playpause, next, prev, mute)");
+            return -1;
+        }
+        for (size_t i = 0; i < NMEDIA; i++) {
+            if (!strcasecmp(name, MEDIA_KEYS[i].name)) {
+                out->kind     = LS_ACTION_MEDIA;
+                out->mediakey = MEDIA_KEYS[i].code;
+                return 0;
+            }
+        }
+        snprintf(err, errlen,
+                 "unknown media key \"%s\" (expected playpause, next, prev, mute)",
+                 name);
+        return -1;
+    }
+
     snprintf(err, errlen,
-             "unknown action \"%s\" (expected none, key:..., or exec:...)",
+             "unknown action \"%s\" (expected none, key:..., exec:..., or media:...)",
              spec);
     return -1;
 }
@@ -225,6 +261,20 @@ static int run_key(const ls_action *a, char *err, size_t errlen)
 }
 #endif
 
+#ifdef __APPLE__
+static int run_media(const ls_action *a, char *err, size_t errlen)
+{
+    return ls_media_key_post(a->mediakey, err, errlen);
+}
+#else
+static int run_media(const ls_action *a, char *err, size_t errlen)
+{
+    (void)a;
+    snprintf(err, errlen, "media actions require macOS; use exec: instead");
+    return -1;
+}
+#endif
+
 static int run_exec(const ls_action *a, char *err, size_t errlen)
 {
     /* Detach so a long-running command cannot stall sampling. SIGCHLD is set
@@ -245,9 +295,10 @@ static int run_exec(const ls_action *a, char *err, size_t errlen)
 int ls_action_run(const ls_action *a, char *err, size_t errlen)
 {
     switch (a->kind) {
-    case LS_ACTION_NONE: return 0;
-    case LS_ACTION_KEY:  return run_key(a, err, errlen);
-    case LS_ACTION_EXEC: return run_exec(a, err, errlen);
+    case LS_ACTION_NONE:  return 0;
+    case LS_ACTION_KEY:   return run_key(a, err, errlen);
+    case LS_ACTION_EXEC:  return run_exec(a, err, errlen);
+    case LS_ACTION_MEDIA: return run_media(a, err, errlen);
     }
     snprintf(err, errlen, "unknown action kind");
     return -1;

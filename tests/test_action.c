@@ -90,12 +90,56 @@ static void test_exec(void)
     CHECK_EQ(ls_action_parse("exec:   ", &a, err, sizeof(err)), -1);
 }
 
+static void test_media(void)
+{
+    ls_action a;
+    char err[128];
+
+    CHECK_EQ(ls_action_parse("media:playpause", &a, err, sizeof(err)), 0);
+    CHECK_EQ(a.kind, LS_ACTION_MEDIA);
+    CHECK_EQ(a.mediakey, 16);   /* NX_KEYTYPE_PLAY */
+
+    CHECK_EQ(ls_action_parse("media:next", &a, err, sizeof(err)), 0);
+    CHECK_EQ(a.mediakey, 19);   /* NX_KEYTYPE_FAST */
+    CHECK_EQ(ls_action_parse("media:prev", &a, err, sizeof(err)), 0);
+    CHECK_EQ(a.mediakey, 20);   /* NX_KEYTYPE_REWIND */
+    CHECK_EQ(ls_action_parse("media:mute", &a, err, sizeof(err)), 0);
+    CHECK_EQ(a.mediakey, 7);    /* NX_KEYTYPE_MUTE */
+
+    /* Case and spacing people actually type. */
+    CHECK_EQ(ls_action_parse("media:PlayPause", &a, err, sizeof(err)), 0);
+    CHECK_EQ(a.mediakey, 16);
+    CHECK_EQ(ls_action_parse("media: playpause", &a, err, sizeof(err)), 0);
+    CHECK_EQ(a.mediakey, 16);
+}
+
+static void test_media_bad(void)
+{
+    ls_action a;
+    char err[128];
+
+    CHECK_EQ(ls_action_parse("media:volume", &a, err, sizeof(err)), -1);
+    CHECK(strstr(err, "playpause") != NULL);
+
+    CHECK_EQ(ls_action_parse("media:", &a, err, sizeof(err)), -1);
+    CHECK(strstr(err, "needs a key") != NULL);
+}
+
+static void test_media_describe_round_trips(void)
+{
+    ls_action a;
+    char err[128];
+    CHECK_EQ(ls_action_parse("media:playpause", &a, err, sizeof(err)), 0);
+    CHECK_STR(ls_action_describe(&a), "media:playpause");
+}
+
 static void test_unknown_scheme(void)
 {
     ls_action a;
     char err[128];
     CHECK_EQ(ls_action_parse("launch:thing", &a, err, sizeof(err)), -1);
     CHECK(strstr(err, "unknown action") != NULL);
+    CHECK(strstr(err, "media:") != NULL);
 }
 
 static void test_describe_round_trips(void)
@@ -125,6 +169,9 @@ TEST_MAIN_BEGIN("action")
     RUN(test_named_keys);
     RUN(test_bad_keys);
     RUN(test_exec);
+    RUN(test_media);
+    RUN(test_media_bad);
+    RUN(test_media_describe_round_trips);
     RUN(test_unknown_scheme);
     RUN(test_describe_round_trips);
     RUN(test_key_name_enumeration_terminates);

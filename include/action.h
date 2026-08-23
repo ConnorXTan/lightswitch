@@ -7,6 +7,7 @@
  *   none                    do nothing (still logged)
  *   key:cmd+w               synthesise a keystroke for the focused app
  *   exec:open -a Finder     run a command line through /bin/sh
+ *   media:playpause         press a media key (playpause, next, prev, mute)
  */
 #ifndef LS_ACTION_H
 #define LS_ACTION_H
@@ -23,12 +24,14 @@
 typedef enum {
     LS_ACTION_NONE = 0,
     LS_ACTION_KEY,
-    LS_ACTION_EXEC
+    LS_ACTION_EXEC,
+    LS_ACTION_MEDIA
 } ls_action_kind;
 
 typedef struct {
     ls_action_kind kind;
     unsigned short keycode;   /* platform virtual keycode */
+    unsigned short mediakey;  /* NX_KEYTYPE_* media key   */
     unsigned int   modifiers; /* LS_MOD_* bitmask         */
     char           spec[LS_ACTION_CMD_MAX];  /* original text, for logging */
     char           command[LS_ACTION_CMD_MAX];

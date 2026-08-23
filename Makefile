@@ -20,26 +20,33 @@ ifeq ($(UNAME_S),Darwin)
   # Darwin's default namespace already exposes POSIX; forcing _POSIX_C_SOURCE
   # here would hide symbols the system frameworks need.
   ALL_CFLAGS := $(BASE) -DLS_HAVE_IOKIT=1
-  PLATFORM_SRC := src/sensor_iokit.c
+  PLATFORM_SRC_C := src/sensor_iokit.c
+  PLATFORM_SRC_M := src/mediakey_macos.m src/overlay_macos.m
   FRAMEWORKS := -framework CoreFoundation -framework IOKit \
-                -framework ApplicationServices
+                -framework ApplicationServices -framework AppKit \
+                -framework QuartzCore
+  # Core action.o calls ls_media_key_post on Darwin, so tests link it too.
+  TEST_PLATFORM_OBJ := $(BUILD)/mediakey_macos.o
 else
   ALL_CFLAGS := $(BASE) -DLS_HAVE_IOKIT=0 -D_POSIX_C_SOURCE=200809L
-  PLATFORM_SRC :=
+  PLATFORM_SRC_C :=
+  PLATFORM_SRC_M :=
   FRAMEWORKS :=
+  TEST_PLATFORM_OBJ :=
 endif
 
 LDLIBS := -lm
 
 CORE_SRC := src/detector.c src/config.c src/action.c src/trace.c \
-            src/sensor.c src/sensor_replay.c src/ui.c
-APP_SRC  := $(CORE_SRC) $(PLATFORM_SRC) src/main.c
+            src/sensor.c src/sensor_replay.c src/ui.c src/glow.c
 
-CORE_OBJ := $(patsubst src/%.c,$(BUILD)/%.o,$(CORE_SRC))
-APP_OBJ  := $(patsubst src/%.c,$(BUILD)/%.o,$(APP_SRC))
+CORE_OBJ     := $(patsubst src/%.c,$(BUILD)/%.o,$(CORE_SRC))
+PLATFORM_OBJ := $(patsubst src/%.c,$(BUILD)/%.o,$(PLATFORM_SRC_C)) \
+                $(patsubst src/%.m,$(BUILD)/%.o,$(PLATFORM_SRC_M))
+APP_OBJ      := $(CORE_OBJ) $(PLATFORM_OBJ) $(BUILD)/main.o
 
 TEST_SRC := tests/test_detector.c tests/test_config.c tests/test_action.c \
-            tests/test_trace.c tests/test_ui.c
+            tests/test_trace.c tests/test_ui.c tests/test_glow.c
 TEST_BIN := $(patsubst tests/%.c,$(BUILD)/%,$(TEST_SRC))
 
 TRACES := idle tap double_tap hold walk_past drift dark office_session
@@ -54,6 +61,9 @@ $(BUILD):
 
 $(BUILD)/%.o: src/%.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
+
+$(BUILD)/%.o: src/%.m | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -fobjc-arc -c $< -o $@
 
 $(BUILD)/lightswitch: $(APP_OBJ)
 	$(CC) $(ALL_CFLAGS) $^ -o $@ $(FRAMEWORKS) $(LDLIBS)
@@ -70,8 +80,8 @@ endif
 
 # Every test links the whole core; the objects are tiny and it keeps the
 # dependency list from rotting as tests grow.
-$(BUILD)/test_%: tests/test_%.c $(CORE_OBJ) tests/harness.h | $(BUILD)
-	$(CC) $(ALL_CFLAGS) -Itests $< $(CORE_OBJ) -o $@ $(FRAMEWORKS) $(LDLIBS)
+$(BUILD)/test_%: tests/test_%.c $(CORE_OBJ) $(TEST_PLATFORM_OBJ) tests/harness.h | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -Itests $< $(CORE_OBJ) $(TEST_PLATFORM_OBJ) -o $@ $(FRAMEWORKS) $(LDLIBS)
 
 test: $(TEST_BIN)
 	@echo

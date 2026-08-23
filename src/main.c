@@ -5,6 +5,7 @@
  *   monitor    live view of the signal and detector state; never acts
  *   calibrate  characterise the sensor and suggest thresholds
  *   replay     push a recorded trace through the detector
+ *   overlay    on-screen glow around the notch; acts like run (macOS only)
  *
  * Every mode drives the same detector over the same sensor interface, so a
  * bug reproduced under --replay is the same bug seen on hardware.
@@ -12,6 +13,8 @@
 #include "action.h"
 #include "config.h"
 #include "detector.h"
+#include "glow.h"
+#include "overlay.h"
 #include "sensor.h"
 #include "trace.h"
 #include "ui.h"
@@ -26,7 +29,8 @@
 
 #define LS_VERSION "0.2.0"
 
-typedef enum { MODE_RUN, MODE_MONITOR, MODE_CALIBRATE, MODE_REPLAY } ls_mode;
+typedef enum { MODE_RUN, MODE_MONITOR, MODE_CALIBRATE, MODE_REPLAY,
+               MODE_OVERLAY } ls_mode;
 
 static volatile sig_atomic_t g_stop = 0;
 
@@ -50,6 +54,8 @@ static void usage(FILE *out)
 "MODES\n"
 "  (default)            watch the sensor and run the bound actions\n"
 "  --monitor            live signal + state view; never runs actions\n"
+"  --overlay            glow around the notch that tracks your hand; runs\n"
+"                       actions (default: hold pauses the music) [macOS]\n"
 "  --calibrate [SECS]   measure the sensor and suggest thresholds\n"
 "\n"
 "SOURCE AND RECORDING\n"
@@ -63,6 +69,13 @@ static void usage(FILE *out)
 "  --on-double-tap SPEC     none                 do nothing\n"
 "  --on-hold SPEC           key:cmd+w            send a keystroke\n"
 "                           exec:CMD             run CMD with /bin/sh\n"
+"                           media:playpause      press a media key (playpause,\n"
+"                                                next, prev, mute)\n"
+"  --switch             on/off switch mode: no taps or holds — covering the\n"
+"                       sensor fires \"on\", uncovering fires \"off\", each at\n"
+"                       the debounce limit (~300 ms, the fastest possible)\n"
+"  --on-cover SPEC      bind the switch-mode edges; binding either one\n"
+"  --on-uncover SPEC    implies --switch\n"
 "  --dry-run            recognise and print gestures, but never act\n"
 "\n"
 "TUNING\n"
@@ -76,14 +89,14 @@ static void usage(FILE *out)
 "  --version, --help\n"
 "\n"
 "SETTINGS\n"
-"  on_tap on_double_tap on_hold poll_ms calibration_ms min_baseline_lux\n"
-"  cover_ratio uncover_ratio debounce_samples hold_ms double_gap_ms\n"
-"  refractory_ms baseline_alpha\n"
+"  on_tap on_double_tap on_hold on_cover on_uncover switch_mode poll_ms\n"
+"  calibration_ms min_baseline_lux cover_ratio uncover_ratio\n"
+"  debounce_samples hold_ms double_gap_ms refractory_ms baseline_alpha\n"
 "\n"
 "NOTES\n"
 "  Turn off System Settings > Displays > \"Automatically adjust brightness\",\n"
 "  or macOS will dim the screen as you shade the sensor and fight detection.\n"
-"  key: actions need Accessibility permission.\n");
+"  key: and media: actions need Accessibility permission.\n");
 }
 
 static void list_keys(void)
@@ -108,6 +121,8 @@ static const ls_action *action_for(const ls_config *c, ls_gesture g)
     case LS_GESTURE_TAP:        return &c->on_tap;
     case LS_GESTURE_DOUBLE_TAP: return &c->on_double_tap;
     case LS_GESTURE_HOLD:       return &c->on_hold;
+    case LS_GESTURE_ON:         return &c->on_cover;
+    case LS_GESTURE_OFF:        return &c->on_uncover;
     case LS_GESTURE_NONE:       break;
     }
     return NULL;
@@ -238,6 +253,160 @@ static int run_calibrate(ls_sensor *sensor, double seconds, double poll_ms)
     return 0;
 }
 
+/* Everything the poll loop touches, bundled so the loop can run untouched on
+ * a worker thread in overlay mode. The detector is owned by whichever thread
+ * runs the loop; only POD ls_glow_input copies ever leave it. */
+struct poll_ctx {
+    ls_sensor       *sensor;
+    ls_detector     *det;
+    const ls_config *cfg;
+    ls_trace_writer *rec;
+    ls_ui           *ui;
+    int              act;
+    int              quiet;
+    FILE            *out;
+    /* Called after every sample with a snapshot; NULL outside overlay mode. */
+    void (*publish)(const ls_glow_input *in, double wall_ms);
+    /* Results, read by the caller after the loop returns. */
+    long             gestures;
+    int              exit_code;
+};
+
+static int run_poll_loop(struct poll_ctx *ctx)
+{
+    ls_detector *det = ctx->det;
+    const ls_config *cfg = ctx->cfg;
+    ls_ui *ui = ctx->ui;
+    char err[256];
+
+    int    calibrated = 0;
+    double t = 0.0, lux = 0.0;
+    double t_last_gesture = 0.0;
+    int    have_fired = 0;
+    ls_gesture last_gesture = LS_GESTURE_NONE;
+
+    while (!g_stop) {
+        int rc = ls_sensor_read(ctx->sensor, &t, &lux);
+        if (rc == 0)
+            break;
+        if (rc < 0) {
+            ctx->exit_code = 1;
+            break;
+        }
+
+        if (ctx->rec && ls_trace_write(ctx->rec, t, lux) != 0) {
+            fprintf(stderr, "lightswitch: failed writing trace\n");
+            ctx->exit_code = 1;
+            break;
+        }
+
+        ls_gesture g = ls_detector_push(det, t, lux);
+
+        if (ls_detector_state(det) == LS_STATE_FAULT) {
+            if (!ctx->quiet)
+                fprintf(stderr, "\nlightswitch: %s\n", ls_detector_fault(det));
+            ctx->exit_code = 1;
+            break;
+        }
+        if (ui)
+            ls_ui_sample(ui, t, lux, det);
+
+        if (!calibrated && ls_detector_state(det) != LS_STATE_CALIBRATING) {
+            calibrated = 1;
+            if (!ctx->quiet && !ls_ui_is_visual(ui)) {
+                double base = ls_detector_baseline(det);
+                fprintf(stderr,
+                        "baseline %.0f lux | cover below %.0f | release above %.0f\n",
+                        base, base * cfg->detector.cover_ratio,
+                        base * cfg->detector.uncover_ratio);
+                fprintf(stderr, "\nReady. Cup your hand over the top of the screen.\n\n");
+            }
+        }
+
+        if (ui)
+            ls_ui_render(ui);
+
+        if (g != LS_GESTURE_NONE) {
+            ctx->gestures++;
+            have_fired = 1;
+            t_last_gesture = t;
+            last_gesture = g;
+
+            const ls_action *action = action_for(cfg, g);
+            int bound = action && action->kind != LS_ACTION_NONE;
+
+            /* Build the line once. Whether it belongs on a plain stream or in
+             * the live view is the sink's problem, not this loop's. */
+            char line[192];
+            int  p = snprintf(line, sizeof line, "[%7.1fs] %s",
+                              t / 1000.0, ls_gesture_name(g));
+            if (p < 0 || p >= (int)sizeof line) p = (int)sizeof line - 1;
+
+            if (bound) {
+                /* Pad the gesture name only when something follows it, so an
+                 * unbound gesture leaves no trailing spaces in a log. */
+                int pad = (int)(11 - strlen(ls_gesture_name(g)));
+                int n = snprintf(line + p, sizeof line - p, "%*s", pad, "");
+                if (n > 0) p += n;
+                if (p >= (int)sizeof line) p = (int)sizeof line - 1;
+
+                if (ctx->act) {
+                    if (ls_action_run(action, err, sizeof(err)) != 0)
+                        /* %.128s: err can be 255 bytes, more than fits in line;
+                         * cap it so gcc can prove the truncation is deliberate. */
+                        snprintf(line + p, sizeof line - p, " -> FAILED: %.128s", err);
+                    else
+                        snprintf(line + p, sizeof line - p, " -> %s",
+                                 ls_action_describe(action));
+                } else {
+                    snprintf(line + p, sizeof line - p, " -> would run %s",
+                             ls_action_describe(action));
+                }
+            }
+
+            if (ui) {
+                ls_ui_count(ui, g);
+                ls_ui_gesture(ui, t, line);   /* prints plainly when not a tty */
+                ls_ui_render(ui);
+            } else {
+                fprintf(ctx->out, "%s\n", line);
+                fflush(ctx->out);
+            }
+        }
+
+        if (ctx->publish) {
+            /* Read-only peek at the detector's cover clock; copied, never
+             * written back. Everything else comes from accessors or is
+             * tracked locally, so the snapshot is pure data. */
+            ls_glow_input gi;
+            gi.state          = ls_detector_state(det);
+            gi.ratio          = ls_detector_ratio(det);
+            gi.cover_ratio    = cfg->detector.cover_ratio;
+            gi.uncover_ratio  = cfg->detector.uncover_ratio;
+            /* No hold in switch mode, so no arc: hold_ms 0 keeps progress
+             * at 0 and the ring alone tells the story. */
+            gi.hold_ms        = cfg->detector.switch_mode
+                                    ? 0.0 : cfg->detector.hold_ms;
+            gi.t_now          = t;
+            gi.t_cover_start  = det->t_cover_start;
+            gi.t_last_gesture = t_last_gesture;
+            gi.have_fired     = have_fired;
+            gi.last_gesture   = last_gesture;
+            ctx->publish(&gi, ls_now_ms());
+        }
+    }
+
+    return ctx->exit_code;
+}
+
+#ifdef __APPLE__
+static void *overlay_poll_main(void *arg)
+{
+    run_poll_loop((struct poll_ctx *)arg);
+    return NULL;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     ls_config cfg;
@@ -308,6 +477,8 @@ int main(int argc, char **argv)
             continue;
         } else if (!strcmp(a, "--monitor")) {
             mode = MODE_MONITOR;
+        } else if (!strcmp(a, "--overlay")) {
+            mode = MODE_OVERLAY;
         } else if (!strcmp(a, "--dry-run")) {
             dry_run = 1;
         } else if (!strcmp(a, "--realtime")) {
@@ -342,11 +513,19 @@ int main(int argc, char **argv)
                 fprintf(stderr, "lightswitch: %s\n", err);
                 return 2;
             }
+        } else if (!strcmp(a, "--switch")) {
+            if (ls_config_set(&cfg, "switch_mode", "1", err, sizeof(err)) != 0) {
+                fprintf(stderr, "lightswitch: %s\n", err);
+                return 2;
+            }
         } else if (!strcmp(a, "--on-tap") || !strcmp(a, "--on-double-tap") ||
-                   !strcmp(a, "--on-hold")) {
-            const char *key = !strcmp(a, "--on-tap")  ? "on_tap"
-                            : !strcmp(a, "--on-hold") ? "on_hold"
-                                                      : "on_double_tap";
+                   !strcmp(a, "--on-hold") || !strcmp(a, "--on-cover") ||
+                   !strcmp(a, "--on-uncover")) {
+            const char *key = !strcmp(a, "--on-tap")     ? "on_tap"
+                            : !strcmp(a, "--on-hold")    ? "on_hold"
+                            : !strcmp(a, "--on-cover")   ? "on_cover"
+                            : !strcmp(a, "--on-uncover") ? "on_uncover"
+                                                         : "on_double_tap";
             if (++i >= argc) {
                 fprintf(stderr, "lightswitch: %s needs an action\n", a);
                 return 2;
@@ -366,6 +545,43 @@ int main(int argc, char **argv)
     if (mode == MODE_REPLAY && !replay_path) {
         fprintf(stderr, "lightswitch: --replay needs a file\n");
         return 2;
+    }
+
+#ifndef __APPLE__
+    if (mode == MODE_OVERLAY) {
+        fprintf(stderr,
+                "lightswitch: this build has no overlay backend (needs macOS); "
+                "try --monitor\n");
+        return 1;
+    }
+#endif
+
+    /* Binding on_cover/on_uncover only makes sense in switch mode, so the
+     * binding implies the mode rather than silently never firing. */
+    if (!cfg.detector.switch_mode &&
+        (cfg.on_cover.kind != LS_ACTION_NONE ||
+         cfg.on_uncover.kind != LS_ACTION_NONE))
+        cfg.detector.switch_mode = 1;
+    if (cfg.detector.switch_mode &&
+        (cfg.on_tap.kind != LS_ACTION_NONE ||
+         cfg.on_double_tap.kind != LS_ACTION_NONE ||
+         cfg.on_hold.kind != LS_ACTION_NONE))
+        fprintf(stderr, "lightswitch: note: switch mode is on, so tap/"
+                        "double-tap/hold bindings will never fire\n");
+
+    /* The out-of-box demo: with nothing configured, --overlay binds a
+     * gesture to play/pause so the first run does something delightful.
+     * Applied here and not in the config defaults, so every other mode
+     * stays inert. */
+    int default_bind = 0;
+    if (mode == MODE_OVERLAY && !dry_run && !ls_config_has_bindings(&cfg)) {
+        const char *key = cfg.detector.switch_mode ? "on_cover" : "on_hold";
+        if (ls_config_set(&cfg, key, "media:playpause",
+                          err, sizeof(err)) != 0) {
+            fprintf(stderr, "lightswitch: %s\n", err);
+            return 2;
+        }
+        default_bind = 1;
     }
 
     if (ls_detector_config_validate(&cfg.detector, err, sizeof(err)) != 0) {
@@ -416,7 +632,8 @@ int main(int argc, char **argv)
         }
     }
 
-    int act = !dry_run && mode == MODE_RUN && ls_config_has_bindings(&cfg);
+    int act = !dry_run && (mode == MODE_RUN || mode == MODE_OVERLAY) &&
+              ls_config_has_bindings(&cfg);
 
     ls_detector det;
     ls_detector_init(&det, &cfg.detector);
@@ -430,9 +647,20 @@ int main(int argc, char **argv)
         fprintf(stderr, "lightswitch %s | source: %s | %s\n",
                 LS_VERSION, ls_sensor_kind(sensor),
                 act ? "actions ARMED" : "dry run (no actions)");
-        fprintf(stderr, "  tap        -> %s\n", ls_action_describe(&cfg.on_tap));
-        fprintf(stderr, "  double-tap -> %s\n", ls_action_describe(&cfg.on_double_tap));
-        fprintf(stderr, "  hold       -> %s\n", ls_action_describe(&cfg.on_hold));
+        if (cfg.detector.switch_mode) {
+            fprintf(stderr, "  on  (cover)   -> %s%s\n",
+                    ls_action_describe(&cfg.on_cover),
+                    default_bind ? "  (default: cover the notch to toggle the music)"
+                                 : "");
+            fprintf(stderr, "  off (uncover) -> %s\n",
+                    ls_action_describe(&cfg.on_uncover));
+        } else {
+            fprintf(stderr, "  tap        -> %s\n", ls_action_describe(&cfg.on_tap));
+            fprintf(stderr, "  double-tap -> %s\n", ls_action_describe(&cfg.on_double_tap));
+            fprintf(stderr, "  hold       -> %s%s\n", ls_action_describe(&cfg.on_hold),
+                    default_bind ? "  (default: hold your hand there to pause the music)"
+                                 : "");
+        }
         if (mode != MODE_REPLAY)
             fprintf(stderr, "\ncalibrating for %.1fs — do not shade the screen...\n",
                     cfg.detector.calibration_ms / 1000.0);
@@ -453,97 +681,36 @@ int main(int argc, char **argv)
         ls_ui_binding(ui, LS_GESTURE_HOLD,       ls_action_describe(&cfg.on_hold));
     }
 
-    int   calibrated = 0;
-    long  gestures = 0;
-    int   exit_code = 0;
-    double t = 0.0, lux = 0.0;
+    struct poll_ctx ctx = {
+        .sensor    = sensor,
+        .det       = &det,
+        .cfg       = &cfg,
+        .rec       = rec,
+        .ui        = ui,
+        .act       = act,
+        .quiet     = quiet,
+        .out       = out,
+        .publish   = NULL,
+        .gestures  = 0,
+        .exit_code = 0,
+    };
 
-    while (!g_stop) {
-        int rc = ls_sensor_read(sensor, &t, &lux);
-        if (rc == 0)
-            break;
-        if (rc < 0) {
-            exit_code = 1;
-            break;
+#ifdef __APPLE__
+    if (mode == MODE_OVERLAY) {
+        ctx.publish = ls_overlay_publish;
+        if (ls_overlay_run(overlay_poll_main, &ctx, &g_stop,
+                           err, sizeof(err)) != 0) {
+            fprintf(stderr, "lightswitch: %s\n", err);
+            ctx.exit_code = 1;
         }
-
-        if (rec && ls_trace_write(rec, t, lux) != 0) {
-            fprintf(stderr, "lightswitch: failed writing trace\n");
-            exit_code = 1;
-            break;
-        }
-
-        ls_gesture g = ls_detector_push(&det, t, lux);
-
-        if (ls_detector_state(&det) == LS_STATE_FAULT) {
-            if (!quiet)
-                fprintf(stderr, "\nlightswitch: %s\n", ls_detector_fault(&det));
-            exit_code = 1;
-            break;
-        }
-        if (ui)
-            ls_ui_sample(ui, t, lux, &det);
-
-        if (!calibrated && ls_detector_state(&det) != LS_STATE_CALIBRATING) {
-            calibrated = 1;
-            if (!quiet && !ls_ui_is_visual(ui)) {
-                double base = ls_detector_baseline(&det);
-                fprintf(stderr,
-                        "baseline %.0f lux | cover below %.0f | release above %.0f\n",
-                        base, base * cfg.detector.cover_ratio,
-                        base * cfg.detector.uncover_ratio);
-                fprintf(stderr, "\nReady. Cup your hand over the top of the screen.\n\n");
-            }
-        }
-
-        if (ui)
-            ls_ui_render(ui);
-
-        if (g != LS_GESTURE_NONE) {
-            gestures++;
-
-            const ls_action *action = action_for(&cfg, g);
-            int bound = action && action->kind != LS_ACTION_NONE;
-
-            /* Build the line once. Whether it belongs on a plain stream or in
-             * the live view is the sink's problem, not this loop's. */
-            char line[192];
-            int  p = snprintf(line, sizeof line, "[%7.1fs] %s",
-                              t / 1000.0, ls_gesture_name(g));
-            if (p < 0 || p >= (int)sizeof line) p = (int)sizeof line - 1;
-
-            if (bound) {
-                /* Pad the gesture name only when something follows it, so an
-                 * unbound gesture leaves no trailing spaces in a log. */
-                int pad = (int)(11 - strlen(ls_gesture_name(g)));
-                int n = snprintf(line + p, sizeof line - p, "%*s", pad, "");
-                if (n > 0) p += n;
-                if (p >= (int)sizeof line) p = (int)sizeof line - 1;
-
-                if (act) {
-                    if (ls_action_run(action, err, sizeof(err)) != 0)
-                        /* %.128s: err can be 255 bytes, more than fits in line;
-                         * cap it so gcc can prove the truncation is deliberate. */
-                        snprintf(line + p, sizeof line - p, " -> FAILED: %.128s", err);
-                    else
-                        snprintf(line + p, sizeof line - p, " -> %s",
-                                 ls_action_describe(action));
-                } else {
-                    snprintf(line + p, sizeof line - p, " -> would run %s",
-                             ls_action_describe(action));
-                }
-            }
-
-            if (ui) {
-                ls_ui_count(ui, g);
-                ls_ui_gesture(ui, t, line);   /* prints plainly when not a tty */
-                ls_ui_render(ui);
-            } else {
-                fprintf(out, "%s\n", line);
-                fflush(out);
-            }
-        }
+    } else
+#endif
+    {
+        run_poll_loop(&ctx);
     }
+
+    long gestures  = ctx.gestures;
+    int  exit_code = ctx.exit_code;
 
     ls_ui_close(ui);
 

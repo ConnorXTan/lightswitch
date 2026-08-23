@@ -14,6 +14,8 @@ void ls_config_defaults(ls_config *c)
     ls_action_none(&c->on_tap);
     ls_action_none(&c->on_double_tap);
     ls_action_none(&c->on_hold);
+    ls_action_none(&c->on_cover);
+    ls_action_none(&c->on_uncover);
     c->poll_ms = 100.0;
 }
 
@@ -52,6 +54,10 @@ int ls_config_set(ls_config *c, const char *key, const char *value,
         return ls_action_parse(value, &c->on_double_tap, err, errlen);
     if (!strcasecmp(key, "on_hold"))
         return ls_action_parse(value, &c->on_hold, err, errlen);
+    if (!strcasecmp(key, "on_cover"))
+        return ls_action_parse(value, &c->on_cover, err, errlen);
+    if (!strcasecmp(key, "on_uncover"))
+        return ls_action_parse(value, &c->on_uncover, err, errlen);
 
     if (!strcasecmp(key, "poll_ms"))
         return parse_double(value, &c->poll_ms, err, errlen, key);
@@ -73,6 +79,8 @@ int ls_config_set(ls_config *c, const char *key, const char *value,
         return parse_double(value, &c->detector.baseline_alpha, err, errlen, key);
     if (!strcasecmp(key, "debounce_samples"))
         return parse_int(value, &c->detector.debounce_samples, err, errlen, key);
+    if (!strcasecmp(key, "switch_mode"))
+        return parse_int(value, &c->detector.switch_mode, err, errlen, key);
 
     snprintf(err, errlen, "unknown setting \"%s\"", key);
     return -1;
@@ -163,5 +171,7 @@ int ls_config_has_bindings(const ls_config *c)
 {
     return c->on_tap.kind        != LS_ACTION_NONE ||
            c->on_double_tap.kind != LS_ACTION_NONE ||
-           c->on_hold.kind       != LS_ACTION_NONE;
+           c->on_hold.kind       != LS_ACTION_NONE ||
+           c->on_cover.kind      != LS_ACTION_NONE ||
+           c->on_uncover.kind    != LS_ACTION_NONE;
 }

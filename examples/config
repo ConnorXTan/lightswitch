@@ -12,6 +12,8 @@
 #   key:COMBO     send a keystroke to the focused app (needs Accessibility
 #                 permission; `lightswitch --list-keys` lists key names)
 #   exec:CMD      run CMD with /bin/sh, detached
+#   media:KEY     press a media key: playpause, next, prev, mute (needs
+#                 Accessibility permission, like key:)
 #
 # Prefer binding `hold` for anything that should feel instant: it fires while
 # your hand is still over the sensor. A tap cannot be recognised until the
@@ -22,9 +24,20 @@ on_double_tap = none
 on_hold       = key:cmd+w
 
 # Other things people bind:
+#   on_hold       = media:playpause
 #   on_hold       = exec:pmset displaysleepnow
 #   on_double_tap = exec:open -a "Activity Monitor"
 #   on_tap        = key:cmd+shift+4
+#   on_tap        = media:next
+
+# Or skip gestures entirely: switch_mode = 1 turns the sensor into a plain
+# on/off switch — covering fires on_cover, uncovering fires on_uncover, each
+# ~300 ms after your hand (the debounce limit; nothing else to wait out).
+# Binding either key implies switch_mode. Tap/double-tap/hold never fire in
+# this mode.
+#   switch_mode = 1
+#   on_cover    = media:playpause
+#   on_uncover  = none
 
 # ---------------------------------------------------------------- detection
 #

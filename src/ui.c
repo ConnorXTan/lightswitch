@@ -111,7 +111,7 @@ struct ls_ui {
 
     char   log[LOG_LINES][120];
     int    logn;
-    long   counts[4];
+    long   counts[LS_GESTURE_OFF + 1];
 
     /* Latest snapshot of the detector, copied not referenced. */
     int      have;
@@ -242,13 +242,20 @@ void ls_ui_close(ls_ui *ui)
         /* Leaving the alternate screen discards the view, so the numbers the
          * session produced are reprinted onto the real scrollback. */
         fputs("\033[?25h\033[?1049l", ui->out);
-        fprintf(ui->out,
-                "lightswitch: %.0fs, %ld gesture%s"
-                " (tap %ld, double-tap %ld, hold %ld)\n",
-                (ui->t_now - ui->t_start) / 1000.0, (long)ui->logn,
-                ui->logn == 1 ? "" : "s",
-                ui->counts[LS_GESTURE_TAP], ui->counts[LS_GESTURE_DOUBLE_TAP],
-                ui->counts[LS_GESTURE_HOLD]);
+        if (ui->counts[LS_GESTURE_ON] || ui->counts[LS_GESTURE_OFF])
+            fprintf(ui->out,
+                    "lightswitch: %.0fs, %ld gesture%s (on %ld, off %ld)\n",
+                    (ui->t_now - ui->t_start) / 1000.0, (long)ui->logn,
+                    ui->logn == 1 ? "" : "s",
+                    ui->counts[LS_GESTURE_ON], ui->counts[LS_GESTURE_OFF]);
+        else
+            fprintf(ui->out,
+                    "lightswitch: %.0fs, %ld gesture%s"
+                    " (tap %ld, double-tap %ld, hold %ld)\n",
+                    (ui->t_now - ui->t_start) / 1000.0, (long)ui->logn,
+                    ui->logn == 1 ? "" : "s",
+                    ui->counts[LS_GESTURE_TAP], ui->counts[LS_GESTURE_DOUBLE_TAP],
+                    ui->counts[LS_GESTURE_HOLD]);
         fflush(ui->out);
     }
     free(ui);
@@ -321,7 +328,7 @@ void ls_ui_gesture(ls_ui *ui, double t_ms, const char *text)
 
 void ls_ui_count(ls_ui *ui, ls_gesture g)
 {
-    if (ui && g >= 0 && g <= LS_GESTURE_HOLD) ui->counts[g]++;
+    if (ui && g >= 0 && g <= LS_GESTURE_OFF) ui->counts[g]++;
 }
 
 /* ---- chart -------------------------------------------------------------- */

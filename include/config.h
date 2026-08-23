@@ -17,6 +17,8 @@ typedef struct {
     ls_action on_tap;
     ls_action on_double_tap;
     ls_action on_hold;
+    ls_action on_cover;      /* switch mode: cover confirmed   */
+    ls_action on_uncover;    /* switch mode: release confirmed */
     double    poll_ms;
 } ls_config;
 
