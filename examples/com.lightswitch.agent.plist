@@ -28,6 +28,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/lightswitch</string>
+        <string>--headless</string>
     </array>
 
     <key>RunAtLoad</key>

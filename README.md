@@ -1,9 +1,14 @@
 # lightswitch
 
-Turns the MacBook's ambient light sensor into a gesture input. Cup your hand
-over the top-centre of the display and the shadow becomes a button: a quick
-cover is a **tap**, two in a row are a **double-tap**, holding it there is a
-**hold**. Each gesture runs whatever you bind it to.
+Turns the MacBook's ambient light sensor into a button. Run it bare and the
+notch becomes a music switch: a glow ring appears around it, and covering it
+with your hand toggles play/pause — about 300 ms from hand to music, in any
+room brighter than candlelight.
+
+Under the default there is a full gesture engine: cup your hand over the
+top-centre of the display and the shadow can be a quick **tap**, a
+**double-tap**, or a **hold**, each bindable to a keystroke, a shell command,
+or a media key.
 
 ```console
 $ lightswitch --on-hold key:cmd+w --on-double-tap 'exec:pmset displaysleepnow'
@@ -109,12 +114,13 @@ Only a C11 compiler is needed. No dependencies.
 ## Using it
 
 ```bash
-lightswitch                       # dry run: recognises and prints, acts on nothing
-lightswitch --overlay             # glow around the notch; hold your hand there
-                                  # to pause the music (the out-of-box demo)
+lightswitch                       # the product: glow around the notch, cover it
+                                  # to toggle play/pause
+lightswitch --headless            # the same control without the window (launchd)
+lightswitch --dry-run             # recognise and print, act on nothing
 lightswitch --monitor             # live view: signal, thresholds, diagnosis
 lightswitch --calibrate           # measure your sensor and check your room
-lightswitch --on-hold key:cmd+w   # bind a gesture and arm it
+lightswitch --on-hold key:cmd+w   # rebind: gestures instead of the switch
 ```
 
 Bind gestures with `--on-tap`, `--on-double-tap`, `--on-hold`, each taking:

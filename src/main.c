@@ -1,11 +1,12 @@
 /* main.c — command line for lightswitch.
  *
  * Modes:
- *   run        watch the sensor, fire the bound action for each gesture
+ *   overlay    (default) glow around the notch; covering it runs the bound
+ *              action — out of the box, toggling play/pause (macOS only)
+ *   run        the same without the window (--headless), for launchd agents
  *   monitor    live view of the signal and detector state; never acts
  *   calibrate  characterise the sensor and suggest thresholds
  *   replay     push a recorded trace through the detector
- *   overlay    on-screen glow around the notch; acts like run (macOS only)
  *
  * Every mode drives the same detector over the same sensor interface, so a
  * bug reproduced under --replay is the same bug seen on hardware.
@@ -52,10 +53,12 @@ static void usage(FILE *out)
 "  lightswitch [options]\n"
 "\n"
 "MODES\n"
-"  (default)            watch the sensor and run the bound actions\n"
+"  (default)            music control: a glow hugs the notch, cover it to\n"
+"                       toggle play/pause (bindings in the config rebind it)\n"
+"  --headless           the same control without the overlay window (what\n"
+"                       the launchd agent runs)\n"
 "  --monitor            live signal + state view; never runs actions\n"
-"  --overlay            glow around the notch that tracks your hand; runs\n"
-"                       actions (default: hold pauses the music) [macOS]\n"
+"  --overlay            the default mode, spelled out\n"
 "  --calibrate [SECS]   measure the sensor and suggest thresholds\n"
 "\n"
 "SOURCE AND RECORDING\n"
@@ -412,7 +415,11 @@ int main(int argc, char **argv)
     ls_config cfg;
     ls_config_defaults(&cfg);
 
-    ls_mode mode = MODE_RUN;
+    /* The default IS the product: glow around the notch, cover it to toggle
+     * the music. Everything else — monitor, calibrate, replay, headless —
+     * is opted into with a flag. */
+    ls_mode mode = MODE_OVERLAY;
+    int mode_explicit = 0;
     const char *config_path = NULL;
     const char *replay_path = NULL;
     const char *record_path = NULL;
@@ -477,14 +484,20 @@ int main(int argc, char **argv)
             continue;
         } else if (!strcmp(a, "--monitor")) {
             mode = MODE_MONITOR;
+            mode_explicit = 1;
         } else if (!strcmp(a, "--overlay")) {
             mode = MODE_OVERLAY;
+            mode_explicit = 1;
+        } else if (!strcmp(a, "--headless")) {
+            mode = MODE_RUN;
+            mode_explicit = 1;
         } else if (!strcmp(a, "--dry-run")) {
             dry_run = 1;
         } else if (!strcmp(a, "--realtime")) {
             realtime = 1;
         } else if (!strcmp(a, "--calibrate")) {
             mode = MODE_CALIBRATE;
+            mode_explicit = 1;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
                 calibrate_secs = strtod(argv[++i], NULL);
                 if (calibrate_secs <= 0.0)
@@ -540,7 +553,9 @@ int main(int argc, char **argv)
         }
     }
 
-    if (replay_path && mode == MODE_RUN)
+    /* A bare --replay is the dev/CI path and stays headless; replay only
+     * drives a window when a mode was explicitly asked for. */
+    if (replay_path && (!mode_explicit || mode == MODE_RUN))
         mode = MODE_REPLAY;
     if (mode == MODE_REPLAY && !replay_path) {
         fprintf(stderr, "lightswitch: --replay needs a file\n");
@@ -569,14 +584,15 @@ int main(int argc, char **argv)
         fprintf(stderr, "lightswitch: note: switch mode is on, so tap/"
                         "double-tap/hold bindings will never fire\n");
 
-    /* The out-of-box demo: with nothing configured, --overlay binds a
-     * gesture to play/pause so the first run does something delightful.
-     * Applied here and not in the config defaults, so every other mode
-     * stays inert. */
+    /* The product, out of the box: with nothing configured, running (with or
+     * without the overlay) IS the music switch — cover the notch to toggle
+     * play/pause. Applied here and not in the config defaults, so a config
+     * file or explicit bindings always win, and the dev modes stay inert. */
     int default_bind = 0;
-    if (mode == MODE_OVERLAY && !dry_run && !ls_config_has_bindings(&cfg)) {
-        const char *key = cfg.detector.switch_mode ? "on_cover" : "on_hold";
-        if (ls_config_set(&cfg, key, "media:playpause",
+    if ((mode == MODE_OVERLAY || mode == MODE_RUN) && !dry_run &&
+        !ls_config_has_bindings(&cfg)) {
+        cfg.detector.switch_mode = 1;
+        if (ls_config_set(&cfg, "on_cover", "media:playpause",
                           err, sizeof(err)) != 0) {
             fprintf(stderr, "lightswitch: %s\n", err);
             return 2;
