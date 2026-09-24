@@ -12,10 +12,15 @@ struct ContentView: View {
     @State private var hovering = false
     @State private var hoverTask: Task<Void, Never>?
     /// The visible shape's size and window, to check the real pointer
-    /// position: opening rebuilds the hover region, which fires a mouse-out
-    /// and a mouse-in a moment apart, and a close must not slip in between.
+    /// position: when the fading closed layout is removed during the open, a
+    /// stray mouse-out fires under a pointer that has not moved, and with a
+    /// still pointer no mouse-in follows. A close must not slip in there.
     @State private var shapeSize: CGSize = .zero
     @State private var window: NSWindow?
+    /// Where the pointer was at the last mouse-in. A mouse-out that arrives
+    /// with the pointer still exactly there did not come from the pointer
+    /// leaving; it came from the view tree changing under it.
+    @State private var lastHoverIn: CGPoint = .zero
 
     /// The wing the closed shape grows to the right of the physical notch to
     /// hold the dots (the notch itself has no pixels). The closed shape is
@@ -48,9 +53,8 @@ struct ContentView: View {
                 .contentShape(Rectangle().offset(x: closedOffset))
                 .onHover(perform: handleHover)
                 .background(GeometryReader { proxy in
-                    Color.clear.preference(key: ShapeSizeKey.self, value: proxy.size)
+                    Color.clear.onChange(of: proxy.size, initial: true) { _, size in shapeSize = size }
                 })
-                .onPreferenceChange(ShapeSizeKey.self) { shapeSize = $0 }
             Spacer(minLength: 0)
         }
         .frame(width: NotchMetrics.windowSize.width,
@@ -65,11 +69,21 @@ struct ContentView: View {
     /// Whether the pointer is over the visible shape right now, from its
     /// real position rather than the last hover event.
     private func pointerInsideShape() -> Bool {
-        guard let window, shapeSize != .zero else { return false }
+        guard let window else { return false }
+        var size = shapeSize
+        if size == .zero {
+            // No measurement yet: the layout's known size.
+            if vm.isOpen {
+                size = CGSize(width: NotchMetrics.openWidth, height: NotchMetrics.windowSize.height)
+            } else if coordinator.peek != nil {
+                size = CGSize(width: NotchMetrics.peekWidth, height: vm.closedSize.height)
+            } else {
+                size = CGSize(width: vm.closedSize.width + closedWing, height: vm.closedSize.height)
+            }
+        }
         let frame = window.frame
-        let x = frame.minX + (frame.width - shapeSize.width) / 2 + closedOffset
-        let rect = CGRect(x: x, y: frame.maxY - shapeSize.height,
-                          width: shapeSize.width, height: shapeSize.height)
+        let x = frame.minX + (frame.width - size.width) / 2 + closedOffset
+        let rect = CGRect(x: x, y: frame.maxY - size.height, width: size.width, height: size.height)
         return rect.insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation)
     }
 
@@ -106,11 +120,12 @@ struct ContentView: View {
     // MARK: Hover
 
     private func handleHover(_ isHovering: Bool) {
-        Log.note(Log.app, "hover \(isHovering ? "in" : "out") open=\(vm.isOpen) t=\(Date().timeIntervalSince1970)")
+        Log.note(Log.app, "hover \(isHovering ? "in" : "out") open=\(vm.isOpen)")
         hoverTask?.cancel()
         hovering = isHovering
 
         if isHovering {
+            lastHoverIn = NSEvent.mouseLocation
             guard openOnHover, !vm.isOpen else { return }
             hoverTask = Task { @MainActor in
                 try? await Task.sleep(for: NotchMetrics.hoverOpenDelay)
@@ -122,8 +137,11 @@ struct ContentView: View {
             hoverTask = Task { @MainActor in
                 try? await Task.sleep(for: NotchMetrics.hoverCloseDelay)
                 guard !Task.isCancelled, !hovering, vm.isOpen else { return }
-                if pointerInsideShape() {
-                    Log.note(Log.app, "hover out ignored: pointer still over the shape")
+                let mouse = NSEvent.mouseLocation
+                let unmoved = mouse == lastHoverIn
+                let inside = pointerInsideShape()
+                if unmoved || inside {
+                    Log.note(Log.app, "hover out ignored: \(unmoved ? "pointer has not moved" : "pointer still over the shape")")
                     hovering = true
                     return
                 }
@@ -131,11 +149,6 @@ struct ContentView: View {
             }
         }
     }
-}
-
-private struct ShapeSizeKey: PreferenceKey {
-    static var defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
 }
 
 // MARK: - Closed
