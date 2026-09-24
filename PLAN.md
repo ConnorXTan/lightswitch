@@ -401,3 +401,45 @@ The two decisions that change the plan are the license and the sandbox; everythi
 - [Claude Code issue #11964: Notification hook missing notification_type](https://github.com/anthropics/claude-code/issues/11964)
 - [DynamicNotchKit](https://github.com/MrKai77/DynamicNotchKit)
 - `~/lightswitch` on your Mac, commit `c8f54ac`
+
+## Implementation log (Sep 24, 2026)
+
+Built in one pass as the initial stage. Every phase has something that runs;
+the checks that need a person at the Mac are listed as pending in
+`docs/testing.md`. Where the build departs from the plan above, this is why.
+
+- **No boring.notch fork; the repo stays MIT.** The kept core would have been
+  about 1,200 GPL lines of glue plus two permissively licensed files. Writing
+  the window, shape, sizing and hover directly was less work than gutting
+  19,000 lines, keeps every line understood, and avoids relicensing a
+  portfolio project. The private window-server space is resolved with `dlsym`
+  at runtime, so a missing symbol degrades to the AppKit window level instead
+  of failing to launch.
+- **Swift Package, not an Xcode project.** `Package.swift` builds three
+  targets (the C engine as `CLightswitch`, `LightswitchKit`, the app) with
+  `swift build` and `swift test`; `make app` wraps the release binary as a
+  bundle with a generated icon. `open Package.swift` gives the Xcode
+  experience. No third-party dependencies, including `Defaults`.
+- **The sensor is not ported, it is linked.** `SensorEngine` wraps the C
+  detector in switch mode, so the app's gesture is the same code the CLI and
+  the 304 fixture assertions exercise. The "GestureDetector struct" tests in
+  the plan are therefore the existing C suite plus replay tests through the
+  bridge.
+- **Dots live in a wing beside the notch, not inside it.** The notch has no
+  pixels; content drawn "inside" the closed shape is invisible on a notched
+  Mac. The wing grows to the right only, so it never covers an app's menu
+  titles. The window is centred on the notch itself, which on this 14-inch is
+  1.5 pt off the screen's centre.
+- **Hooks need nothing installed.** `notch.sh` uses `jq` when present and
+  `plutil` otherwise. `SessionStart` matches `startup|resume|clear|fork`
+  rather than `*`, because it also fires on `compact` and would flip a working
+  dot to grey mid-turn. `SessionEnd` runs synchronously (2 s) so it lands
+  before the `SessionStart` that `/clear` fires for the same id.
+  `elicitation_dialog` was added to the red matchers so questions count as
+  "needs you". jq's `//` treats `false` as absent; the script avoids it.
+- **The screen was locked during the build.** Window geometry and every
+  layout were verified with offscreen renders (`LIGHTSWITCH_SNAPSHOT_DIR`);
+  hover, the live sensor (the ALS disappears while the display sleeps; both
+  the app and the CLI report "no ambient light sensor") and terminal focus
+  are the manual checks still open. Hooks were not installed into the real
+  `~/.claude/settings.json`; that is one click in the app.

@@ -112,6 +112,8 @@ struct ClosedLayout: View {
                                height: vm.closedSize.height)
                         .padding(.leading, DotMetrics.insetLeading)
                         .padding(.trailing, DotMetrics.insetTrailing)
+                        .contentShape(Rectangle())
+                        .onTapGesture { vm.toggle() }
                 }
             }
         } else {
@@ -119,6 +121,8 @@ struct ClosedLayout: View {
                 .frame(width: vm.closedSize.width - NotchMetrics.closedInset * 2,
                        height: vm.closedSize.height)
                 .padding(.horizontal, NotchMetrics.closedInset)
+                .contentShape(Rectangle())
+                .onTapGesture { vm.toggle() }
         }
     }
 }
