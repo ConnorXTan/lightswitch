@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-24T11:47:02Z",
+  "title": "Design System: Lightswitch",
+  "extensions": {
+    "colorMeta": {
+      "notch-black": { "role": "neutral", "displayName": "Notch Black", "canonical": "#000000" },
+      "white": {
+        "role": "neutral",
+        "displayName": "White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "rgba(255,255,255,0.09)", "rgba(255,255,255,0.14)", "rgba(255,255,255,0.32)", "rgba(255,255,255,0.40)",
+          "rgba(255,255,255,0.45)", "rgba(255,255,255,0.55)", "rgba(255,255,255,0.85)", "rgba(255,255,255,1)"
+        ],
+        "note": "The ramp is the set of opacity steps the build actually uses on black; there is no grey scale."
+      },
+      "state-needs-you": { "role": "primary", "displayName": "Needs You", "canonical": "NSColor.systemRed", "frozenHex": "#ff453b", "note": "Dynamic system colour in the app; the app icon freezes it at the dark-appearance value." },
+      "state-working": { "role": "primary", "displayName": "Working", "canonical": "NSColor.systemYellow", "frozenHex": "#ffd60a" },
+      "state-done": { "role": "primary", "displayName": "Done", "canonical": "NSColor.systemGreen", "frozenHex": "#30d159" },
+      "settings-accent": { "role": "primary", "displayName": "Accent", "canonical": "Color.accentColor" },
+      "settings-warning": { "role": "primary", "displayName": "Covered", "canonical": "NSColor.systemOrange" },
+      "settings-error": { "role": "primary", "displayName": "Error", "canonical": "NSColor.systemRed" },
+      "settings-secondary": { "role": "neutral", "displayName": "Secondary", "canonical": "Color.secondary" },
+      "settings-track": { "role": "neutral", "displayName": "Track", "canonical": "HierarchicalShapeStyle.quaternary" },
+      "icon-tile-top": { "role": "neutral", "displayName": "Icon Tile Light", "canonical": "#29292e" },
+      "icon-tile-bottom": { "role": "neutral", "displayName": "Icon Tile Dark", "canonical": "#121214" }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Title", "purpose": "Folder names, the peek title, empty-state headings." },
+      "title-tinted": { "displayName": "Title, tinted", "purpose": "The peek detail, coloured with the state." },
+      "label": { "displayName": "Label", "purpose": "The state word beside each row's dot." },
+      "meta": { "displayName": "Meta", "purpose": "The age column and empty-state body copy; monospaced digits." },
+      "button": { "displayName": "Button", "purpose": "The Install hooks capsule on the notch." },
+      "caption": { "displayName": "Caption", "purpose": "The open panel's Claude Code header." },
+      "caption-count": { "displayName": "Caption, counting", "purpose": "The panel summary; monospaced digits." },
+      "mono": { "displayName": "Mono", "purpose": "Short session IDs when two sessions share a folder name." },
+      "counter": { "displayName": "Counter", "purpose": "The +N overflow in the closed notch." },
+      "settings-body": { "displayName": "Settings body", "purpose": "System body text style, untouched, in the grouped Form." },
+      "settings-callout": { "displayName": "Settings callout", "purpose": "Error lines under the sensor and hooks sections." }
+    },
+    "shadows": [
+      { "name": "panel-lift", "value": "0 8px 14px rgba(0,0,0,0.5)", "purpose": "The whole notch shape while open or hovered; opacity 0 at rest." },
+      { "name": "dot-glow-low", "value": "0 0 2px <state colour at 35%>", "purpose": "Unacknowledged red dot, pulse trough." },
+      { "name": "dot-glow-high", "value": "0 0 5px <state colour at 90%>", "purpose": "Unacknowledged red dot, pulse peak." },
+      { "name": "icon-glow", "value": "0 0 (0.9 × dot) rgba(255,69,59,0.9)", "purpose": "The red dot in the app icon only." }
+    ],
+    "motion": [
+      { "name": "open", "value": "spring(response: 0.42, dampingFraction: 0.8)", "purpose": "Closed to open; animates the silhouette radii and the panel's scale-from-0.9 + fade transition." },
+      { "name": "close", "value": "spring(response: 0.45, dampingFraction: 1.0)", "purpose": "Open to closed; critically damped so the notch settles without overshoot." },
+      { "name": "peek", "value": "smooth(duration: 0.3)", "purpose": "The closed shape widening to 640 pt for 3 s when a session turns red; content fades." },
+      { "name": "wing", "value": "smooth(duration: 0.3)", "purpose": "The closed wing growing or shrinking as dot slots change." },
+      { "name": "slots", "value": "smooth(duration: 0.25)", "purpose": "Dots row when the number of drawn slots changes." },
+      { "name": "pulse", "value": "easeInOut(duration: 0.8).repeatForever(autoreverses: true)", "purpose": "Unacknowledged red dot: scale 1 to 1.4, glow 2 pt/35% to 5 pt/90%." },
+      { "name": "breathe", "value": "easeInOut(duration: 2.2).repeatForever(autoreverses: true)", "purpose": "Done dot once Claude has been waiting a while: opacity 1 to 0.45." },
+      { "name": "dot-settle", "value": "easeOut(duration: 0.2)", "purpose": "A dot returning to rest when the pulse or breathe stops." },
+      { "name": "row-hover", "value": "easeOut(duration: 0.12)", "purpose": "Session row hover fill in and out." },
+      { "name": "ratio-bar", "value": "linear(duration: 0.1)", "purpose": "The Settings ratio bar tracking the live sensor reading." },
+      { "name": "hover-open-delay", "value": "300ms", "purpose": "Pointer must rest this long before the notch opens." },
+      { "name": "hover-close-delay", "value": "100ms", "purpose": "Pointer-out debounce before the notch closes." },
+      { "name": "reduce-motion", "value": "accessibilityReduceMotion", "purpose": "Pulse and breathe are disabled; an unacknowledged red dot gets a 1.5 pt white 90% ring at dot + 6 pt." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Session Dot",
+      "kind": "custom",
+      "refersTo": "session-dot",
+      "description": "The 8 pt status dot in its four states. Red and unacknowledged pulses; done-and-waiting breathes; Reduce Motion swaps the pulse for a ring. System colours stand in as their dark-appearance hex.",
+      "html": "<div class=\"ds-notch\"><span class=\"ds-dot ds-dot-idle\" role=\"img\" aria-label=\"api is idle\"></span><span class=\"ds-dot ds-dot-working\" role=\"img\" aria-label=\"web is working\"></span><span class=\"ds-dot ds-dot-needs-you\" role=\"img\" aria-label=\"infra needs you\"></span><span class=\"ds-dot ds-dot-done ds-dot-breathe\" role=\"img\" aria-label=\"docs is done\"></span></div>",
+      "css": ".ds-notch { display: inline-flex; align-items: center; gap: 10px; padding: 0 18px 0 12px; height: 32px; background: #000; border-radius: 0 0 14px 14px; } .ds-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; position: relative; } .ds-dot-idle { background: rgba(255,255,255,0.32); } .ds-dot-working { background: #ffd60a; } .ds-dot-done { background: #30d159; } .ds-dot-needs-you { background: #ff453b; animation: ds-pulse 0.8s ease-in-out infinite alternate; } .ds-dot-breathe { animation: ds-breathe 2.2s ease-in-out infinite alternate; } @keyframes ds-pulse { from { transform: scale(1); box-shadow: 0 0 2px rgba(255,69,59,0.35); } to { transform: scale(1.4); box-shadow: 0 0 5px rgba(255,69,59,0.9); } } @keyframes ds-breathe { from { opacity: 1; } to { opacity: 0.45; } } @media (prefers-reduced-motion: reduce) { .ds-dot-needs-you, .ds-dot-breathe { animation: none; box-shadow: none; opacity: 1; } .ds-dot-needs-you::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.9); } }"
+    },
+    {
+      "name": "Dots Row with Overflow",
+      "kind": "custom",
+      "refersTo": "overflow-counter",
+      "description": "The closed notch's wing: four fixed slots (an empty slot keeps its width) and a +N counter when more sessions exist than slots.",
+      "html": "<div class=\"ds-wing\"><span class=\"ds-dot ds-dot-working\"></span><span class=\"ds-dot ds-dot-empty\"></span><span class=\"ds-dot ds-dot-needs-you\"></span><span class=\"ds-dot ds-dot-done\"></span><span class=\"ds-overflow\" aria-label=\"2 more sessions\">+2</span></div>",
+      "css": ".ds-wing { display: inline-flex; align-items: center; gap: 10px; padding: 0 18px 0 12px; height: 32px; background: #000; border-radius: 0 0 14px 14px; } .ds-wing .ds-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; } .ds-dot-empty { background: transparent; } .ds-dot-working { background: #ffd60a; } .ds-dot-needs-you { background: #ff453b; } .ds-dot-done { background: #30d159; } .ds-overflow { width: 20px; font: 600 10px ui-rounded, system-ui, sans-serif; font-variant-numeric: tabular-nums; color: rgba(255,255,255,0.6); }"
+    },
+    {
+      "name": "Peek",
+      "kind": "custom",
+      "refersTo": "peek",
+      "description": "The closed shape widened for 3 s when a session turns red: folder on the left of the notch, the state word on the right, a clear gap over the hardware between them.",
+      "html": "<div class=\"ds-peek\"><span class=\"ds-peek-title\">lightswitch</span><span class=\"ds-peek-gap\"></span><span class=\"ds-peek-detail\">needs you</span></div>",
+      "css": ".ds-peek { display: flex; align-items: center; width: 640px; max-width: 100%; height: 32px; padding: 0 24px; box-sizing: border-box; background: #000; border-radius: 0 0 14px 14px; } .ds-peek-title { flex: 1; text-align: right; font: 600 13px system-ui, sans-serif; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-peek-gap { width: 195px; flex: none; } .ds-peek-detail { flex: 1; text-align: left; font: 500 13px system-ui, sans-serif; color: #ff453b; white-space: nowrap; }"
+    },
+    {
+      "name": "Open Panel Header",
+      "kind": "nav",
+      "refersTo": "panel-header-title",
+      "description": "The first row of the open panel: the source on the left, a counting summary on the right, the notch's width left clear in the middle.",
+      "html": "<div class=\"ds-panel-header\"><span class=\"ds-panel-title\">Claude Code</span><span class=\"ds-panel-gap\"></span><span class=\"ds-panel-summary\">1 needs you</span></div>",
+      "css": ".ds-panel-header { display: flex; align-items: center; width: 400px; max-width: 100%; height: 32px; padding: 0 20px; box-sizing: border-box; background: #000; border-radius: 19px 19px 0 0; } .ds-panel-title { flex: 1; font: 600 11px system-ui, sans-serif; color: rgba(255,255,255,0.55); } .ds-panel-gap { width: 195px; flex: none; } .ds-panel-summary { flex: 1; text-align: right; font: 500 11px system-ui, sans-serif; font-variant-numeric: tabular-nums; color: rgba(255,255,255,0.45); }"
+    },
+    {
+      "name": "Session Row",
+      "kind": "card",
+      "refersTo": "session-row",
+      "description": "One row per session in the open list: dot, folder, optional short ID, state word in the state colour, age in monospaced digits. Hover fills white 9 %.",
+      "html": "<div class=\"ds-list\"><div class=\"ds-row\" role=\"button\" tabindex=\"0\" aria-label=\"lightswitch needs you, 3m\"><span class=\"ds-dot ds-dot-needs-you\"></span><span class=\"ds-row-name\">lightswitch</span><span class=\"ds-row-id\">a1b2c3</span><span class=\"ds-row-spacer\"></span><span class=\"ds-row-state\" style=\"color:#ff453b\">needs you</span><span class=\"ds-row-age\">3m</span></div><div class=\"ds-row\" role=\"button\" tabindex=\"0\" aria-label=\"docs is idle, 12m\"><span class=\"ds-dot ds-dot-idle\"></span><span class=\"ds-row-name\">docs</span><span class=\"ds-row-spacer\"></span><span class=\"ds-row-state ds-row-state-idle\">idle</span><span class=\"ds-row-age\">12m</span></div></div>",
+      "css": ".ds-list { display: flex; flex-direction: column; gap: 1px; width: 400px; max-width: 100%; padding: 0 10px 10px; box-sizing: border-box; background: #000; border-radius: 0 0 24px 24px; } .ds-row { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border-radius: 8px; background: rgba(255,255,255,0); transition: background 0.12s ease-out; cursor: default; } .ds-row:hover, .ds-row:focus-visible { background: rgba(255,255,255,0.09); outline: none; } .ds-row .ds-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; } .ds-dot-needs-you { background: #ff453b; } .ds-dot-idle { background: rgba(255,255,255,0.32); } .ds-row-name { font: 600 13px system-ui, sans-serif; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-row-id { font: 400 11px ui-monospace, monospace; color: rgba(255,255,255,0.4); } .ds-row-spacer { flex: 1; min-width: 8px; } .ds-row-state { font: 500 12px system-ui, sans-serif; } .ds-row-state-idle { color: rgba(255,255,255,0.45); } .ds-row-age { width: 32px; text-align: right; font: 400 12px system-ui, sans-serif; font-variant-numeric: tabular-nums; color: rgba(255,255,255,0.4); }"
+    },
+    {
+      "name": "Empty State with Install Button",
+      "kind": "button",
+      "refersTo": "button-install",
+      "description": "The open panel with no sessions and hooks not installed: heading, one line of explanation, and the only button drawn on the notch.",
+      "html": "<div class=\"ds-empty\"><div class=\"ds-empty-title\">Hooks not installed</div><div class=\"ds-empty-body\">Sessions report their state through Claude Code hooks.</div><button class=\"ds-btn-install\">Install hooks</button></div>",
+      "css": ".ds-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 400px; max-width: 100%; min-height: 64px; padding: 6px 10px 10px; box-sizing: border-box; text-align: center; background: #000; border-radius: 0 0 24px 24px; } .ds-empty-title { font: 600 13px system-ui, sans-serif; color: rgba(255,255,255,0.85); } .ds-empty-body { font: 400 12px system-ui, sans-serif; color: rgba(255,255,255,0.45); } .ds-btn-install { margin-top: 4px; padding: 5px 12px; border: none; border-radius: 9999px; background: rgba(255,255,255,0.14); color: #fff; font: 600 12px system-ui, sans-serif; cursor: default; } .ds-btn-install:hover { background: rgba(255,255,255,0.14); } .ds-btn-install:focus-visible { outline: 2px solid rgba(255,255,255,0.9); outline-offset: 2px; }"
+    },
+    {
+      "name": "Ratio Bar",
+      "kind": "custom",
+      "refersTo": "ratio-bar",
+      "description": "The Settings window's live sensor readout: the fill is the reading as a fraction of baseline, the two ticks are the cover and uncover thresholds. Accent fill while armed; orange once covered.",
+      "html": "<div class=\"ds-ratio\" role=\"img\" aria-label=\"Light level 72 percent of baseline\"><div class=\"ds-ratio-fill\" style=\"width:72%\"></div><div class=\"ds-ratio-tick\" style=\"left:45%\"></div><div class=\"ds-ratio-tick\" style=\"left:70%\"></div></div>",
+      "css": ".ds-ratio { position: relative; width: 180px; height: 6px; border-radius: 9999px; background: rgba(128,128,128,0.18); } .ds-ratio-fill { height: 100%; border-radius: 9999px; background: #0a84ff; transition: width 0.1s linear; } .ds-ratio-fill.ds-covered { background: #ff9f0a; } .ds-ratio-tick { position: absolute; top: -2px; width: 1px; height: 10px; background: rgba(128,128,128,0.6); }"
+    },
+    {
+      "name": "Status Icon",
+      "kind": "custom",
+      "refersTo": "session-dot",
+      "description": "The 18 pt menu bar template image: a 2 × 2 grid of 3 pt dots with 1.5 pt gaps, following the menu bar's appearance.",
+      "html": "<svg class=\"ds-status-icon\" width=\"18\" height=\"18\" viewBox=\"0 0 18 18\" aria-label=\"Lightswitch\"><circle cx=\"6.75\" cy=\"6.75\" r=\"1.5\"/><circle cx=\"11.25\" cy=\"6.75\" r=\"1.5\"/><circle cx=\"6.75\" cy=\"11.25\" r=\"1.5\"/><circle cx=\"11.25\" cy=\"11.25\" r=\"1.5\"/></svg>",
+      "css": ".ds-status-icon { fill: currentColor; display: inline-block; vertical-align: middle; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Status Light",
+    "overview": "Lightswitch draws nothing of its own except a black shape that extends the MacBook's notch and the coloured dots inside it. The world is the platform's: the system font at 10 to 13 pt, the system's semantic status colours, standard grouped Settings controls, a text-only menu bar menu. Personality lives in the dots and in motion that only ever means a change of state.\n\nDensity is high and fixed. The closed notch is a row of 8 pt dots at 10 pt spacing; the open panel is a 400 pt list of 32 pt rows. Nothing decorative is drawn behind the physical notch, which has no pixels: layouts leave a clear gap exactly the notch's measured width.",
+    "keyCharacteristics": [
+      "Pure black shape, white text at opacity steps, three system state colours.",
+      "One typeface (system), sizes 10 to 13 pt, monospaced digits wherever numbers tick.",
+      "Motion is state: springs for open/close, a pulse for \"needs you\", a slow breathe for \"done and waiting\", nothing at rest.",
+      "Shadows appear only in response to state; at rest every shadow is opacity 0.",
+      "Reduce Motion swaps the pulse for a white ring; every dot and row carries a spoken label."
+    ],
+    "rules": [
+      { "name": "The Dim White Rule", "body": "On the notch, every non-state colour is white at an opacity step (9, 14, 32, 40, 45, 55, 60, 85, 90, 100 %). No grey hex ever appears on black.", "section": "colors" },
+      { "name": "The Words Beside Colour Rule", "body": "A state colour never stands alone. In the open list and the peek the state is also a word; in the closed notch the dot's accessibility label speaks it; red adds motion (or the ring).", "section": "colors" },
+      { "name": "The Counting Digits Rule", "body": "Anything that counts or ticks (the summary, the age, \"+N\", the lux readout) uses monospaced digits so it does not jitter.", "section": "typography" },
+      { "name": "The Shadow-On-State Rule", "body": "No surface carries a shadow at rest. The panel's shadow arrives with open or hover; the dot's arrives with the pulse; both return to 0.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do fill every notch shape with pure black and put nothing on it except white at an opacity step or a system state colour.",
+      "Do keep type in the system font between 10 and 13 pt and use monospaced digits for anything that counts.",
+      "Do pair every state colour with its word (row label, peek detail) or its spoken label.",
+      "Do animate only state changes: springs for open/close, smooth 0.3 for the peek, the pulse for unacknowledged red, the breathe for done-and-waiting, easeOut 0.12 for row hover.",
+      "Do honour Reduce Motion: no pulse, no breathe, the white ring instead.",
+      "Do keep the four dot slots fixed and overflow into \"+N\".",
+      "Do use standard grouped Form controls in Settings; draw custom only the ratio bar and the 8 pt status dot."
+    ],
+    "donts": [
+      "Don't draw behind the physical notch; leave the measured gap clear in the closed, peek and open layouts.",
+      "Don't introduce a custom typeface, glyph icons or bitmap images: the menu bar icon and app icon are drawn dots and the notch silhouette.",
+      "Don't give a surface a shadow at rest; the panel lift and dot glow are opacity 0 until open, hover or pulse.",
+      "Don't use grey for idle or for secondary text on black; use white at the recorded opacity.",
+      "Don't tint chrome with a state colour; red, yellow and green appear on dots, state words and the peek detail only (and, in Settings, systemRed for errors and systemOrange for the covered sensor)."
+    ]
+  }
+}
