@@ -8,7 +8,7 @@ final class NotchWindow: NSPanel {
     init<Content: View>(rootView: Content) {
         let rect = NSRect(origin: .zero, size: NotchMetrics.windowSize)
         super.init(contentRect: rect,
-                   styleMask: [.borderless, .nonactivatingPanel, .utilityWindow, .hudWindow],
+                   styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered,
                    defer: false)
 

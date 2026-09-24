@@ -6,6 +6,9 @@
 #   make traces     regenerate the fixtures in tests/traces
 #   make ci         warnings-as-errors build plus tests
 #   make install    install to $(PREFIX)/bin  (default /usr/local)
+#   make app        build/Lightswitch.app, the notch status light (Swift)
+#   make swift-test the Swift unit tests (the C suite is `make test`)
+#   make run        build the app and open it
 
 CC      ?= cc
 CFLAGS  ?= -O2 -g
@@ -52,7 +55,7 @@ TEST_BIN := $(patsubst tests/%.c,$(BUILD)/%,$(TEST_SRC))
 TRACES := idle tap double_tap hold walk_past drift dark office_session
 TRACE_FILES := $(patsubst %,tests/traces/%.lstrace,$(TRACES))
 
-.PHONY: all test demo traces ci clean install uninstall help
+.PHONY: all test demo traces ci clean install uninstall help app run swift swift-test
 
 all: $(BUILD)/lightswitch
 
@@ -129,4 +132,35 @@ clean:
 	rm -rf $(BUILD)
 
 help:
-	@sed -n '2,9p' Makefile | sed 's/^# \{0,1\}//'
+	@sed -n '2,12p' Makefile | sed 's/^# \{0,1\}//'
+
+# ---- the app -----------------------------------------------------------------
+# The Swift package (Package.swift) builds the notch app; this wraps the
+# release binary as a bundle so Launch Services treats it as an app (menu bar
+# extra, LSUIElement, Automation permission for terminal focus).
+
+APP        := $(BUILD)/Lightswitch.app
+SWIFT_REL  := .build/release/Lightswitch
+SWIFT_SRC  := Package.swift $(shell find Lightswitch src include -type f 2>/dev/null)
+
+swift:
+	swift build
+
+swift-test:
+	swift test
+
+app: $(APP)
+
+$(APP): $(SWIFT_SRC)
+	swift build -c release
+	rm -rf $(APP)
+	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
+	cp $(SWIFT_REL) $(APP)/Contents/MacOS/Lightswitch
+	cp Lightswitch/Info.plist $(APP)/Contents/Info.plist
+	@if [ -f Lightswitch/Resources/Lightswitch.icns ]; then \
+	   cp Lightswitch/Resources/Lightswitch.icns $(APP)/Contents/Resources/; fi
+	codesign --force --sign - $(APP)
+	@echo "built $(APP)"
+
+run: app
+	open $(APP)

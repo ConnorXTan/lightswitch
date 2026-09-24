@@ -5,7 +5,7 @@ import Darwin
 /// over fullscreen apps and above the menu bar. The entry points live in the
 /// private SkyLight framework; they are resolved at runtime and, if any is
 /// missing, nothing is done — the panel then simply keeps its (already very
-/// high) AppKit window level.
+/// high) AppKit window level. `LIGHTSWITCH_NO_SPACE=1` skips it deliberately.
 @MainActor
 final class PrivateSpace {
     static let shared = PrivateSpace()
@@ -25,7 +25,8 @@ final class PrivateSpace {
     let available: Bool
 
     private init() {
-        guard let handle = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_NOW),
+        guard ProcessInfo.processInfo.environment["LIGHTSWITCH_NO_SPACE"] == nil,
+              let handle = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_NOW),
               let cidSym = dlsym(handle, "_CGSDefaultConnection"),
               let createSym = dlsym(handle, "CGSSpaceCreate"),
               let levelSym = dlsym(handle, "CGSSpaceSetAbsoluteLevel"),

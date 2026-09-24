@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windows: [String: NotchWindow] = [:]
     private let coordinator = NotchCoordinator.shared
     private var observers: [NSObjectProtocol] = []
+    private var snapshotter: Snapshotter?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Preferences.register()
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         })
 
         layoutWindows()
+        snapshotter = Snapshotter { [weak self] in Array((self?.windows ?? [:]).values) }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
