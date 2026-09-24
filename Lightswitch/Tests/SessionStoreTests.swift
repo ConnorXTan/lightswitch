@@ -215,7 +215,8 @@ final class SessionStoreTests: XCTestCase {
 
     // MARK: Projects
 
-    func testSessionsGroupByWorkingDirectoryInFirstAppearanceOrder() throws {
+    func testSessionsGroupByProjectInFirstAppearanceOrder() throws {
+        store.projectRoot = { $0 }
         try write("a", state: "working", cwd: "/Users/connortan/Documents/GitHub/lightswitch", updatedAt: 100)
         try write("b", state: "needs_you", cwd: "/Users/connortan/MARs/MARS", updatedAt: 200)
         try write("c", state: "idle", cwd: "/Users/connortan/Documents/GitHub/lightswitch", updatedAt: 300)
@@ -229,9 +230,27 @@ final class SessionStoreTests: XCTestCase {
     }
 
     func testGroupWithoutAWorkingDirectoryIsStillListed() {
-        let g = ProjectGroup(cwd: "", sessions: [Session(id: "x1234", state: .idle, cwd: "")])
+        let g = ProjectGroup(root: "", sessions: [Session(id: "x1234", state: .idle, cwd: "")])
         XCTAssertEqual(g.name, "untitled")
         XCTAssertEqual(g.location, "")
+        XCTAssertEqual(g.subpath(of: g.sessions[0]), "")
+    }
+
+    func testWorktreesAndSubfoldersListUnderTheirRepository() {
+        let repo = "/Users/connortan/Documents/GitHub/prism"
+        let sessions = [
+            Session(id: "a", state: .working, cwd: repo),
+            Session(id: "b", state: .idle, cwd: repo + "/.claude/worktrees/onboard"),
+            Session(id: "c", state: .done, cwd: repo + "/src/app"),
+            Session(id: "d", state: .idle, cwd: "/Users/connortan/Documents/GitHub/prism-feature"),
+            Session(id: "e", state: .idle, cwd: "/Users/connortan/notes"),
+        ]
+        let groups = ProjectGroup.grouping(sessions) { $0.hasPrefix(repo) ? repo : $0 }
+        XCTAssertEqual(groups.map(\.name), ["prism", "notes"])
+        XCTAssertEqual(groups[0].sessions.map(\.id), ["a", "b", "c", "d"])
+        XCTAssertEqual(groups[0].sessions.map(groups[0].subpath(of:)), ["", "onboard", "src/app", "prism-feature"])
+        XCTAssertEqual(groups[0].attention, .working)
+        XCTAssertEqual(groups[1].subpath(of: sessions[4]), "")
     }
 
     func testTerminalLabelNamesTheAppAndTheTab() {

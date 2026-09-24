@@ -26,6 +26,7 @@ struct SessionListView: View {
                             ProjectHeader(group: group, showLocation: duplicates.contains(group.name))
                             ForEach(group.sessions) { session in
                                 SessionRow(session: session,
+                                           subpath: group.subpath(of: session),
                                            acknowledged: store.isAcknowledged(session.id),
                                            now: context.date) {
                                     onSelect(session)
@@ -86,11 +87,13 @@ struct ProjectHeader: View {
     }
 }
 
-/// One Claude terminal inside a project.
+/// One Claude terminal inside a project, with the subfolder or worktree
+/// it sits in when that is not the project root.
 struct SessionRow: View {
     static let height: CGFloat = 28
 
     let session: Session
+    var subpath: String = ""
     let acknowledged: Bool
     let now: Date
     let onSelect: () -> Void
@@ -105,6 +108,14 @@ struct SessionRow: View {
                 .foregroundStyle(.white.opacity(0.85))
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .layoutPriority(1)
+            if !subpath.isEmpty {
+                Text(subpath)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .lineLimit(1)
+                    .truncationMode(.head)
+            }
             Spacer(minLength: 8)
             Text(session.state.label)
                 .font(.system(size: 12, weight: .medium))
@@ -127,7 +138,7 @@ struct SessionRow: View {
         .onTapGesture(perform: onSelect)
         .animation(.easeOut(duration: 0.12), value: hovering)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(session.folderName), \(session.terminalLabel), \(session.state.announcement), \(session.age(at: now))")
+        .accessibilityLabel("\(session.projectName)\(subpath.isEmpty ? "" : " " + subpath), \(session.terminalLabel), \(session.state.announcement), \(session.age(at: now))")
         .accessibilityAddTraits(.isButton)
     }
 }

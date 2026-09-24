@@ -30,6 +30,9 @@ public final class SessionStore: ObservableObject {
 
     public let directory: URL
     public var pruneInterval: TimeInterval = 10
+    /// Maps a session's working directory to the repository it lists
+    /// under; tests swap in the identity.
+    public var projectRoot: (String) -> String = ProjectRoot.resolve
 
     /// Every known session, slotted ones first in slot order, then overflow in
     /// order of first appearance.
@@ -180,10 +183,10 @@ public final class SessionStore: ObservableObject {
         return out
     }
 
-    /// The open notch's view: one group per working directory, each holding
-    /// its terminals in slot order.
+    /// The open notch's view: one group per repository, each holding its
+    /// terminals in slot order.
     public var groups: [ProjectGroup] {
-        ProjectGroup.grouping(sessions)
+        ProjectGroup.grouping(sessions, root: projectRoot)
     }
 
     /// Sessions beyond the four slots, in order of first appearance.
