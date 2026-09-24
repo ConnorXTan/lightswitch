@@ -8,14 +8,21 @@ enum NotchMetrics {
     /// alert peek, tall enough for the open list plus its shadow.
     static let windowSize = CGSize(width: 640, height: 360)
 
-    /// Width of the open panel.
-    static let openWidth: CGFloat = 400
+    /// Width of the open panel. Beside the header's clear notch gap this
+    /// leaves 87 pt a side, enough for "Claude Code" (70 pt) and
+    /// "12 terminals" (65 pt) on one line.
+    static let openWidth: CGFloat = 440
     /// Width of the closed shape while an alert peek is showing.
     static let peekWidth: CGFloat = 640
 
     /// Horizontal inset of content inside the closed shape.
     static let closedInset: CGFloat = 10
+    /// Bottom inset of the open panel's content.
     static let openInset: CGFloat = 10
+    /// Horizontal inset of the open panel's content. The shape's sides sit
+    /// inside its flared top corners by the top radius, so this is the
+    /// flare plus the margin that actually shows (14 pt to the text).
+    static let openSideInset: CGFloat = openRadii.top + 4
 
     static let closedRadii = (top: CGFloat(6), bottom: CGFloat(14))
     static let openRadii = (top: CGFloat(19), bottom: CGFloat(24))

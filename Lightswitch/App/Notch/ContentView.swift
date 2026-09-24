@@ -187,6 +187,7 @@ struct OpenLayout: View {
                 Text("Claude Code")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.55))
+                    .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Color.clear
                     .frame(width: vm.hasNotch ? vm.closedSize.width + NotchMetrics.closedInset : 0)
@@ -194,6 +195,7 @@ struct OpenLayout: View {
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()
                     .foregroundStyle(.white.opacity(0.45))
+                    .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .padding(.horizontal, 10)
@@ -203,18 +205,19 @@ struct OpenLayout: View {
                             onInstallHooks: { coordinator.installHooks() },
                             onSelect: { coordinator.select($0) })
         }
-        .padding(.horizontal, NotchMetrics.openInset)
+        .padding(.horizontal, NotchMetrics.openSideInset)
         .padding(.bottom, NotchMetrics.openInset)
         .frame(width: NotchMetrics.openWidth)
     }
 
+    /// One short line: what needs you, else how many terminals. The project
+    /// count is left out; the headers below already show it, and it does not
+    /// fit beside the notch.
     private var summary: String {
         let red = store.sessions.filter { $0.state == .needsYou }.count
         if red > 0 { return red == 1 ? "1 needs you" : "\(red) need you" }
         let n = store.sessions.count
-        let p = store.groups.count
         if n == 0 { return "" }
-        let sessions = n == 1 ? "1 terminal" : "\(n) terminals"
-        return p > 1 ? "\(sessions) · \(p) projects" : sessions
+        return n == 1 ? "1 terminal" : "\(n) terminals"
     }
 }
