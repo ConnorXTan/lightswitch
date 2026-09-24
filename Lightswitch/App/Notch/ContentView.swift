@@ -19,7 +19,7 @@ struct ContentView: View {
     /// mouse-in follows until something else changes. So opening and closing
     /// are decided by where the pointer actually is.
     @State private var shapeSize: CGSize = .zero
-    @State private var window: NSWindow?
+    @State private var windowHandle = WindowHandle()
 
     /// The wing the closed shape grows to the right of the physical notch to
     /// hold the dots (the notch itself has no pixels). The closed shape is
@@ -59,7 +59,7 @@ struct ContentView: View {
         .frame(width: NotchMetrics.windowSize.width,
                height: NotchMetrics.windowSize.height,
                alignment: .top)
-        .background(WindowReader { window = $0 })
+        .background(WindowReader(handle: windowHandle))
         .onChange(of: vm.state) { _, newState in
             if newState == .closed {
                 hovering = false
@@ -72,7 +72,18 @@ struct ContentView: View {
     /// Whether the pointer is over the visible shape right now, from its
     /// real position rather than the last hover event.
     private func pointerInsideShape() -> Bool {
-        guard let window else { return false }
+        // The window's frame, or where it would be: the window is centred on
+        // the notch at the top of its screen.
+        let frame: CGRect
+        if let window = windowHandle.window {
+            frame = window.frame
+        } else if let screen = vm.screen {
+            let size = NotchMetrics.windowSize
+            frame = CGRect(x: NotchGeometry.notchCenterX(for: screen) - size.width / 2,
+                           y: screen.frame.maxY - size.height, width: size.width, height: size.height)
+        } else {
+            return false
+        }
         var size = shapeSize
         if size == .zero {
             // No measurement yet: the layout's known size.
@@ -84,7 +95,6 @@ struct ContentView: View {
                 size = CGSize(width: vm.closedSize.width + closedWing, height: vm.closedSize.height)
             }
         }
-        let frame = window.frame
         let x = frame.minX + (frame.width - size.width) / 2 + closedOffset
         let rect = CGRect(x: x, y: frame.maxY - size.height, width: size.width, height: size.height)
         return rect.insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation)
