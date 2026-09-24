@@ -9,12 +9,14 @@ import LightswitchKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windows: [String: NotchWindow] = [:]
     private let coordinator = NotchCoordinator.shared
+    private let store = SessionStore.shared
     private var observers: [NSObjectProtocol] = []
     private var snapshotter: Snapshotter?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Preferences.register()
         NSApp.setActivationPolicy(.accessory)
+        store.start()
 
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -62,7 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let vm = NotchViewModel(screen: screen)
                 let window = NotchWindow(rootView: ContentView()
                     .environmentObject(vm)
-                    .environmentObject(coordinator))
+                    .environmentObject(coordinator)
+                    .environmentObject(store))
                 windows[uuid] = window
                 coordinator.register(vm, screenUUID: uuid)
                 PrivateSpace.shared.add(window)
@@ -75,7 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func position(_ window: NSWindow, on screen: NSScreen) {
         let size = NotchMetrics.windowSize
-        let frame = NSRect(x: screen.frame.midX - size.width / 2,
+        let frame = NSRect(x: NotchGeometry.notchCenterX(for: screen) - size.width / 2,
                            y: screen.frame.maxY - size.height,
                            width: size.width, height: size.height)
         window.setFrame(frame, display: true)

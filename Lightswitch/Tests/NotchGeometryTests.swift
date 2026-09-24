@@ -24,6 +24,14 @@ final class NotchGeometryTests: XCTestCase {
         XCTAssertEqual(size.height, NotchGeometry.fallbackHeight)
     }
 
+    func testNotchCentreFollowsTheAuxiliaryAreas() {
+        // This 14-inch: left 665, right 662 → notch centre 757.5, not 756.
+        XCTAssertEqual(NotchGeometry.notchCenterX(screenMinX: 0, screenWidth: 1512,
+                                                  leftAuxWidth: 665, rightAuxWidth: 662), 757.5)
+        XCTAssertEqual(NotchGeometry.notchCenterX(screenMinX: 1512, screenWidth: 2560,
+                                                  leftAuxWidth: nil, rightAuxWidth: nil), 1512 + 1280)
+    }
+
     func testPreferencesRegisterDefaults() {
         let suite = UserDefaults(suiteName: "NotchGeometryTests.\(UUID().uuidString)")!
         Preferences.register(in: suite)
