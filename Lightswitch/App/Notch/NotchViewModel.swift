@@ -30,11 +30,13 @@ final class NotchViewModel: ObservableObject {
     /// `.animation(value:)` modifier on the container does not).
     func open() {
         guard state != .open else { return }
+        Log.note(Log.app, "open t=\(Date().timeIntervalSince1970)")
         withAnimation(NotchMetrics.openAnimation) { state = .open }
     }
 
     func close() {
         guard state != .closed else { return }
+        Log.note(Log.app, "close t=\(Date().timeIntervalSince1970)")
         withAnimation(NotchMetrics.closeAnimation) { state = .closed }
     }
 
