@@ -12,33 +12,34 @@ struct ContentView: View {
     @State private var hovering = false
     @State private var hoverTask: Task<Void, Never>?
 
-    private var shape: NotchShape {
-        NotchShape(topRadius: vm.isOpen ? NotchMetrics.openRadii.top : NotchMetrics.closedRadii.top,
-                   bottomRadius: vm.isOpen ? NotchMetrics.openRadii.bottom : NotchMetrics.closedRadii.bottom)
-    }
-
-    /// The closed shape grows a wing to the right of the physical notch to hold
-    /// the dots (the notch itself has no pixels). Shifting the whole shape by
-    /// half the wing keeps the notch part exactly over the hardware.
-    private var wingWidth: CGFloat {
-        guard vm.state == .closed, coordinator.peek == nil, vm.hasNotch else { return 0 }
+    /// The wing the closed shape grows to the right of the physical notch to
+    /// hold the dots (the notch itself has no pixels). The closed shape is
+    /// shifted right by half of it so the notch part stays exactly over the
+    /// hardware.
+    private var closedWing: CGFloat {
+        guard vm.hasNotch else { return 0 }
         return WingLayout.wingWidth(store.slotted, overflow: store.overflow.count)
     }
 
+    /// Where the closed shape sits relative to the container, so the hover
+    /// region can follow it.
+    private var closedOffset: CGFloat {
+        vm.state == .closed && coordinator.peek == nil ? closedWing / 2 : 0
+    }
+
+    /// Each layout draws its own black surface, so the closed shape never
+    /// morphs into the panel: the panel pops in over it, already centred on
+    /// the notch, and nothing has to slide into place afterwards. Hover is
+    /// tracked on this container, which outlives the layouts, so swapping
+    /// them cannot fire a stray mouse-out.
     var body: some View {
         VStack(spacing: 0) {
             layout
-                .background(Color.black)
-                .clipShape(shape)
-                .shadow(color: .black.opacity(vm.isOpen || hovering ? 0.5 : 0),
-                        radius: 14, x: 0, y: 8)
-                .contentShape(Rectangle())
+                .contentShape(Rectangle().offset(x: closedOffset))
                 .onHover(perform: handleHover)
-                .offset(x: wingWidth / 2)
                 .animation(vm.isOpen ? NotchMetrics.openAnimation : NotchMetrics.closeAnimation,
                            value: vm.state)
                 .animation(NotchMetrics.peekAnimation, value: coordinator.peek)
-                .animation(.smooth(duration: 0.3), value: wingWidth)
             Spacer(minLength: 0)
         }
         .frame(width: NotchMetrics.windowSize.width,
@@ -54,13 +55,19 @@ struct ContentView: View {
         switch vm.state {
         case .open:
             OpenLayout()
+                .surface(radii: NotchMetrics.openRadii, lift: 0.5)
                 .transition(.scale(scale: 0.9, anchor: .top).combined(with: .opacity))
         case .closed:
             if let peek = coordinator.peek {
                 PeekLayout(peek: peek)
+                    .surface(radii: NotchMetrics.closedRadii, lift: hovering ? 0.5 : 0)
                     .transition(.opacity)
             } else {
                 ClosedLayout()
+                    .surface(radii: NotchMetrics.closedRadii, lift: hovering ? 0.5 : 0)
+                    .offset(x: closedWing / 2)
+                    .animation(.smooth(duration: 0.3), value: closedWing)
+                    .transition(.opacity)
             }
         }
     }
@@ -219,5 +226,16 @@ struct OpenLayout: View {
         let n = store.sessions.count
         if n == 0 { return "" }
         return n == 1 ? "1 terminal" : "\(n) terminals"
+    }
+}
+
+// MARK: - Surface
+
+private extension View {
+    /// The black notch surface: background, silhouette and lift.
+    func surface(radii: (top: CGFloat, bottom: CGFloat), lift: Double) -> some View {
+        background(Color.black)
+            .clipShape(NotchShape(topRadius: radii.top, bottomRadius: radii.bottom))
+            .shadow(color: .black.opacity(lift), radius: 14, x: 0, y: 8)
     }
 }
