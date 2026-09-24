@@ -125,29 +125,47 @@ struct ClosedLayout: View {
 
 // MARK: - Peek
 
-/// The closed shape widened to show a line of text either side of the notch.
+/// The closed shape widened to show a line of text either side of the notch:
+/// the folder on the left, what it wants on the right. Without a notch the
+/// two sit together in a pill.
 struct PeekLayout: View {
     @EnvironmentObject private var vm: NotchViewModel
     let peek: NotchCoordinator.Peek
 
+    private var title: some View {
+        Text(peek.title)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .truncationMode(.middle)
+    }
+
+    private var detail: some View {
+        Text(peek.detail)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(peek.tint)
+            .lineLimit(1)
+    }
+
     var body: some View {
-        HStack(spacing: 0) {
-            Text(peek.title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-            Color.clear
-                .frame(width: vm.closedSize.width + NotchMetrics.closedInset)
-            Text(peek.detail)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(peek.tint)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        if vm.hasNotch {
+            HStack(spacing: 0) {
+                title.frame(maxWidth: .infinity, alignment: .trailing)
+                Color.clear
+                    .frame(width: vm.closedSize.width + NotchMetrics.closedInset)
+                detail.frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 24)
+            .frame(width: NotchMetrics.peekWidth, height: vm.closedSize.height)
+        } else {
+            HStack(spacing: 8) {
+                title
+                detail
+            }
+            .padding(.horizontal, 24)
+            .frame(minWidth: vm.closedSize.width)
+            .frame(height: vm.closedSize.height)
         }
-        .padding(.horizontal, 18)
-        .frame(width: NotchMetrics.peekWidth, height: vm.closedSize.height)
     }
 }
 
