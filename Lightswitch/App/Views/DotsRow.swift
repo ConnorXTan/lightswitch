@@ -1,65 +1,37 @@
 import SwiftUI
 import LightswitchKit
 
-/// Sizing shared by the dots and by the closed-notch layout that has to know
-/// how wide the wing holding them will be, so the shape can be offset to keep
-/// the physical notch covered exactly.
-enum DotMetrics {
-    static let diameter: CGFloat = 8
-    static let gap: CGFloat = 10
-    /// Space between the physical notch and the first dot.
-    static let insetLeading: CGFloat = 12
-    /// Space after the last dot. The shape's body sits inside its flared top
-    /// corners by the top radius (6 pt), so this is 12 pt of visible margin.
-    static let insetTrailing: CGFloat = 18
-    static let overflowWidth: CGFloat = 20
-
-    /// How many slot positions are drawn: up to the highest occupied slot, so
-    /// a session keeps its place when the ones before it leave.
-    static func slotsShown(_ slotted: [Session?]) -> Int {
-        (slotted.lastIndex { $0 != nil }).map { $0 + 1 } ?? 0
-    }
-
-    static func rowWidth(slots: Int, overflow: Int) -> CGFloat {
-        guard slots > 0 else { return 0 }
-        var w = CGFloat(slots) * diameter + CGFloat(slots - 1) * gap
-        if overflow > 0 { w += gap + overflowWidth }
-        return w
-    }
-
-    static func wingWidth(slots: Int, overflow: Int) -> CGFloat {
-        let row = rowWidth(slots: slots, overflow: overflow)
-        return row > 0 ? row + insetLeading + insetTrailing : 0
-    }
-}
-
-/// One dot per slot, in slot order, plus a "+N" when more sessions exist
-/// than slots. Empty slots keep their space so positions never shift.
+/// One wing of the island: the dots for its slots, nearest the notch first,
+/// plus a "+N" on the right wing when more sessions exist than slots. Empty
+/// slots keep their space so positions never shift.
 struct DotsRow: View {
     @EnvironmentObject private var store: SessionStore
+    let side: IslandLayout.Side
 
     var body: some View {
-        let slotted = store.slotted
-        let shown = DotMetrics.slotsShown(slotted)
-        HStack(spacing: DotMetrics.gap) {
-            ForEach(0..<shown, id: \.self) { index in
-                SessionDot(session: slotted[index],
-                           acknowledged: slotted[index].map { store.isAcknowledged($0.id) } ?? true)
+        let slots = IslandLayout.slots(store.slotted, side: side)
+        // Screen order: the right wing reads outward from the notch, the
+        // left wing is mirrored so its first slot is beside the notch too.
+        let indices = side == .right ? Array(slots.indices) : Array(slots.indices.reversed())
+        HStack(spacing: IslandLayout.gap) {
+            ForEach(indices, id: \.self) { index in
+                SessionDot(session: slots[index],
+                           acknowledged: slots[index].map { store.isAcknowledged($0.id) } ?? true)
                     .contentShape(Rectangle().inset(by: -5))
                     .onTapGesture {
-                        if let session = slotted[index] { NotchCoordinator.shared.select(session) }
+                        if let session = slots[index] { NotchCoordinator.shared.select(session) }
                     }
             }
-            if !store.overflow.isEmpty {
+            if side == .right, !store.overflow.isEmpty {
                 Text("+\(store.overflow.count)")
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.white.opacity(0.6))
-                    .frame(width: DotMetrics.overflowWidth, alignment: .leading)
+                    .frame(width: IslandLayout.overflowWidth, alignment: .leading)
                     .accessibilityLabel("\(store.overflow.count) more sessions")
             }
         }
-        .animation(.smooth(duration: 0.25), value: shown)
+        .animation(.smooth(duration: 0.25), value: slots.count)
     }
 }
 
@@ -69,7 +41,7 @@ struct DotsRow: View {
 struct SessionDot: View {
     let session: Session?
     let acknowledged: Bool
-    var size: CGFloat = DotMetrics.diameter
+    var size: CGFloat = IslandLayout.dot
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase = false

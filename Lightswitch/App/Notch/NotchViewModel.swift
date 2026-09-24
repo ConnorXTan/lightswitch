@@ -25,6 +25,13 @@ final class NotchViewModel: ObservableObject {
 
     var isOpen: Bool { state == .open }
 
+    /// Height of the closed island. On a notched display it hangs
+    /// `IslandLayout.topGap` below the screen edge and reaches just past the
+    /// notch's bottom; elsewhere it is a pill the height of the menu bar.
+    var islandHeight: CGFloat {
+        hasNotch ? closedSize.height - IslandLayout.topGap + IslandLayout.bottomOverhang : closedSize.height
+    }
+
     func open() { state = .open }
     func close() { state = .closed }
     func toggle() { state == .open ? close() : open() }

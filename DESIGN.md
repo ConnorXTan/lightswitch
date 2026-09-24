@@ -260,38 +260,39 @@ centred on the physical notch (not the screen). The closed shape's size is
 measured per screen: the notch's width plus a 2 pt bleed each side, and the
 notch's height (or the menu bar height on displays without a notch).
 
-- **Closed, notched display:** the notch itself is a clear frame; a black wing to its right holds the dots. Wing width = dots row + 12 pt leading + 18 pt trailing (the trailing 18 includes the 6 pt top flare, so 12 pt reads as margin). Four 8 pt dots at 10 pt gaps = 62 pt row, 92 pt wing; with "+N" (20 pt wide, after one more 10 pt gap) 122 pt. The whole shape shifts right by half the wing so the notch part stays over the hardware.
+- **Closed, notched display (island, since the `island` branch):** a black capsule hanging 5 pt below the screen edge and reaching 1 pt past the notch's bottom (32 − 5 + 1 = 28 pt tall on this 14-inch, so a 14 pt radius), centred on the notch, with a wing either side. The notch itself is a clear frame inside it. Dots alternate wings (1st right, 2nd left, 3rd right …), nearest the notch first. Wing width = 12 pt inner inset + dots row + 16 pt outer inset, and both wings take whichever side needs more, so the island is symmetric: one dot 36 pt, two per side 54 pt, three per side 72 pt; "+N" (20 pt, after one more 10 pt gap) sits on the right and widens both to 102 pt. No sessions: no wings, just the notch.
 - **Closed, other displays:** a black pill over the menu bar, dots centred, 10 pt horizontal inset.
 - **Peek:** the closed shape widened to 640 pt, 24 pt horizontal padding; title right-aligned left of the notch, detail left-aligned right of it, with a clear gap of the notch width + 10 pt between. Without a notch, the two sit in one pill 8 pt apart.
 - **Open:** 400 pt wide, 10 pt horizontal and bottom padding, 4 pt between header and list. The header row is the closed height and leaves the same notch-width + 10 pt clear gap in its middle. Rows are 32 pt with 1 pt between; after six rows the list scrolls at 6 × 33 = 198 pt.
 - **Row:** 10 pt horizontal padding, 10 pt between dot, name, ID and state; the age column is a fixed 32 pt, right-aligned; at least 8 pt of spacer before the state word.
 - **Empty state:** centred, 6 pt vertical rhythm, minimum 64 pt tall, 6 pt vertical padding.
 - **Settings:** a grouped Form, 460 pt wide, three sections (Notch, Light sensor, Claude Code hooks). The ratio bar is 180 × 6 pt.
-- **Dot slots:** four fixed slots. Empty slots keep their space so a dot never shifts when a session before it ends.
+- **Dot slots:** six fixed slots, three per wing. Empty slots keep their space so a dot never shifts when a session before it ends.
 
 ## Elevation & Depth
 
-Flat by default. The black shape sits on the bezel with no edge at rest; depth
-appears only as a response to state.
+Flat by default. The island floats: a soft resting shadow separates it from
+the menu bar; the deeper panel lift arrives with open or hover.
 
 ### Shadow Vocabulary
-- **Panel lift** (`black 50 %, radius 14, y 8`): on the whole shape while open or hovered; opacity 0 otherwise.
+- **Island lift** (`black 30 %, radius 6, y 3`): on the closed island whenever it shows beyond the notch (wings or peek); 0 when only the notch is there.
+- **Panel lift** (`black 50 %, radius 14, y 8`): on the whole shape while open or hovered.
 - **Dot glow** (state colour, `radius 2 at 35 %` ↔ `radius 5 at 90 %`): only on an unacknowledged red dot, alternating with the pulse; opacity 0 at rest on every other dot.
 - **Icon glow** (red at 90 %, blur 0.9 × dot): the red dot in the app icon only.
 
 ### Named Rules
-**The Shadow-On-State Rule.** No surface carries a shadow at rest. The panel's shadow arrives with open or hover; the dot's arrives with the pulse; both return to 0.
+**The Shadow-On-State Rule.** The island's resting shadow is the only one at rest, and only when there is an island to see. The panel's deeper shadow arrives with open or hover; the dot's arrives with the pulse; both return to their rest values.
 
 ## Shapes
 
-The notch silhouette (`NotchShape`): a rectangle whose top corners flare
-*outward* into the screen edge (a quadratic curve from the very corner, radius
-`t`) so the black blends into the bezel, and whose bottom corners round inward
-(radius `b`). Closed: t 6, b 14. Open: t 19, b 24. Both radii are
-animatable, so opening reads as the notch growing rather than a panel
-appearing under it. The app icon draws the same silhouette at t = 10 % and
-b = 30 % of its notch height, hanging from a squircle tile with corner radius
-22.5 % of the tile.
+The island (`IslandShape`): a continuous-corner rounded rectangle. Closed,
+the radius is half the island's height, so it is a capsule; open, it relaxes
+to 24 pt. The radius is animatable, so opening reads as the island swelling
+rather than a panel appearing under it. The island is not attached to the
+screen edge: it hangs 5 pt below it, and the physical notch (which has no
+pixels) reads as the stem joining the two. The app icon still draws the
+original notch silhouette (top flare 10 %, bottom radius 30 % of its notch
+height) hanging from a squircle tile with corner radius 22.5 % of the tile.
 
 Inside the shape: dots are circles; rows are 8 pt continuous-corner rounded
 rectangles; the install button and the ratio bar are capsules.
@@ -307,7 +308,7 @@ rectangles; the install button and the ratio bar are capsules.
 - **Accessibility:** "*folder* needs you" / "*folder* is working" / "is done" / "is idle".
 
 ### Dots Row (closed notch)
-- One dot per slot in slot order, 10 pt gaps; empty slots keep their width.
+- One dot per slot, 10 pt gaps, nearest the notch first; slots 1, 3, 5 on the right wing, 2, 4, 6 on the left; empty slots keep their width.
 - More sessions than slots: "+N" in counter type at white 60 %, 20 pt wide, labelled "N more sessions".
 - Slot count changes animate with `smooth 0.25 s`; the wing width with `smooth 0.3 s`.
 - Tapping the dots row toggles the panel; tapping a dot focuses that session's terminal.

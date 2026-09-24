@@ -1,7 +1,7 @@
 import SwiftUI
 import LightswitchKit
 
-/// The root view of every notch window: the black shape, its hover
+/// The root view of every notch window: the black island, its hover
 /// behaviour, and the three layouts it can hold (closed, peeking, open).
 struct ContentView: View {
     @EnvironmentObject private var vm: NotchViewModel
@@ -12,36 +12,40 @@ struct ContentView: View {
     @State private var hovering = false
     @State private var hoverTask: Task<Void, Never>?
 
-    private var shape: NotchShape {
-        NotchShape(topRadius: vm.isOpen ? NotchMetrics.openRadii.top : NotchMetrics.closedRadii.top,
-                   bottomRadius: vm.isOpen ? NotchMetrics.openRadii.bottom : NotchMetrics.closedRadii.bottom)
+    /// Closed, the island is a capsule; open, a panel.
+    private var radius: CGFloat {
+        vm.isOpen ? NotchMetrics.openRadius : vm.islandHeight / 2
     }
 
-    /// The closed shape grows a wing to the right of the physical notch to hold
-    /// the dots (the notch itself has no pixels). Shifting the whole shape by
-    /// half the wing keeps the notch part exactly over the hardware.
+    /// The closed island grows a wing either side of the physical notch to
+    /// hold the dots (the notch itself has no pixels). Both wings share one
+    /// width, so the island stays centred on the notch.
     private var wingWidth: CGFloat {
         guard vm.state == .closed, coordinator.peek == nil, vm.hasNotch else { return 0 }
-        return DotMetrics.wingWidth(slots: DotMetrics.slotsShown(store.slotted),
-                                    overflow: store.overflow.count)
+        return IslandLayout.wingWidth(store.slotted, overflow: store.overflow.count)
+    }
+
+    /// Nothing but the notch is showing: no island to cast a shadow.
+    private var bare: Bool {
+        vm.state == .closed && coordinator.peek == nil && vm.hasNotch && wingWidth == 0
     }
 
     var body: some View {
         VStack(spacing: 0) {
             layout
                 .background(Color.black)
-                .clipShape(shape)
-                .shadow(color: .black.opacity(vm.isOpen || hovering ? 0.5 : 0),
-                        radius: 14, x: 0, y: 8)
+                .clipShape(IslandShape(radius: radius))
+                .shadow(color: .black.opacity(vm.isOpen || hovering ? 0.5 : (bare ? 0 : 0.3)),
+                        radius: vm.isOpen ? 14 : 6, x: 0, y: vm.isOpen ? 8 : 3)
                 .contentShape(Rectangle())
                 .onHover(perform: handleHover)
-                .offset(x: wingWidth / 2)
                 .animation(vm.isOpen ? NotchMetrics.openAnimation : NotchMetrics.closeAnimation,
                            value: vm.state)
                 .animation(NotchMetrics.peekAnimation, value: coordinator.peek)
                 .animation(.smooth(duration: 0.3), value: wingWidth)
             Spacer(minLength: 0)
         }
+        .padding(.top, vm.hasNotch ? IslandLayout.topGap : 0)
         .frame(width: NotchMetrics.windowSize.width,
                height: NotchMetrics.windowSize.height,
                alignment: .top)
@@ -92,35 +96,47 @@ struct ContentView: View {
 
 // MARK: - Closed
 
-/// On a notched display: the physical notch (no pixels, so nothing is drawn
-/// there) plus a wing on the right holding the dots. On other displays the
-/// closed shape is a pill over the menu bar and the dots sit centred in it.
+/// On a notched display: a wing of dots either side of the physical notch
+/// (no pixels, so nothing is drawn there), the two wings the same width so
+/// the island is centred. On other displays the closed shape is a pill over
+/// the menu bar and the dots sit centred in it.
 struct ClosedLayout: View {
     @EnvironmentObject private var vm: NotchViewModel
     @EnvironmentObject private var store: SessionStore
 
     var body: some View {
         if vm.hasNotch {
+            let wing = IslandLayout.wingWidth(store.slotted, overflow: store.overflow.count)
             HStack(spacing: 0) {
+                self.wing(.left, width: wing)
                 Color.clear
-                    .frame(width: vm.closedSize.width, height: vm.closedSize.height)
-                let wing = DotMetrics.wingWidth(slots: DotMetrics.slotsShown(store.slotted),
-                                                overflow: store.overflow.count)
-                if wing > 0 {
-                    DotsRow()
-                        .frame(width: wing - DotMetrics.insetLeading - DotMetrics.insetTrailing,
-                               height: vm.closedSize.height)
-                        .padding(.leading, DotMetrics.insetLeading)
-                        .padding(.trailing, DotMetrics.insetTrailing)
-                        .contentShape(Rectangle())
-                        .onTapGesture { vm.toggle() }
-                }
+                    .frame(width: vm.closedSize.width, height: vm.islandHeight)
+                self.wing(.right, width: wing)
             }
         } else {
-            DotsRow()
-                .frame(width: vm.closedSize.width - NotchMetrics.closedInset * 2,
-                       height: vm.closedSize.height)
-                .padding(.horizontal, NotchMetrics.closedInset)
+            HStack(spacing: IslandLayout.gap) {
+                DotsRow(side: .right)
+                DotsRow(side: .left)
+            }
+            .frame(width: vm.closedSize.width - NotchMetrics.closedInset * 2,
+                   height: vm.closedSize.height)
+            .padding(.horizontal, NotchMetrics.closedInset)
+            .contentShape(Rectangle())
+            .onTapGesture { vm.toggle() }
+        }
+    }
+
+    /// One wing: its dots hug the notch, the far end is the capsule's end.
+    @ViewBuilder
+    private func wing(_ side: IslandLayout.Side, width: CGFloat) -> some View {
+        if width > 0 {
+            let inner = IslandLayout.innerInset
+            let outer = IslandLayout.outerInset
+            DotsRow(side: side)
+                .frame(width: width - inner - outer, height: vm.islandHeight,
+                       alignment: side == .right ? .leading : .trailing)
+                .padding(.leading, side == .right ? inner : outer)
+                .padding(.trailing, side == .right ? outer : inner)
                 .contentShape(Rectangle())
                 .onTapGesture { vm.toggle() }
         }
@@ -129,9 +145,9 @@ struct ClosedLayout: View {
 
 // MARK: - Peek
 
-/// The closed shape widened to show a line of text either side of the notch:
-/// the folder on the left, what it wants on the right. Without a notch the
-/// two sit together in a pill.
+/// The island widened to show a line of text either side of the notch: the
+/// project on the left, what it wants on the right. Without a notch the two
+/// sit together in a pill.
 struct PeekLayout: View {
     @EnvironmentObject private var vm: NotchViewModel
     let peek: NotchCoordinator.Peek
@@ -160,7 +176,7 @@ struct PeekLayout: View {
                 detail.frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, 24)
-            .frame(width: NotchMetrics.peekWidth, height: vm.closedSize.height)
+            .frame(width: NotchMetrics.peekWidth, height: vm.islandHeight)
         } else {
             HStack(spacing: 8) {
                 title
@@ -198,7 +214,7 @@ struct OpenLayout: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .padding(.horizontal, 10)
-            .frame(height: vm.closedSize.height)
+            .frame(height: vm.islandHeight)
 
             SessionListView(hooksInstalled: coordinator.hooksInstalled,
                             onInstallHooks: { coordinator.installHooks() },

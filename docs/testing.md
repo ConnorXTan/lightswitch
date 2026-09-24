@@ -12,9 +12,11 @@ to the notch layout, the hook script, or a Claude Code update.
 | 1 | Plug in an external display | A pill appears at menu-bar height, dots centred in it | pending | manual |
 | 1 | Open a fullscreen app | The notch still floats above it | pending | manual (private space resolved and applied, `PrivateSpace.available == true`) |
 | 1 | Closed shape covers the physical notch exactly | Shape width = notch + 4, window centred on the notch, not the screen | 2026-09-24 | unit (`NotchGeometryTests`) + snapshot |
+| 1 | Closed island is centred and symmetric | A capsule 5 pt below the screen edge; both wings the same width; dots alternate wings, nearest the notch first | 2026-09-24 | unit (`IslandLayoutTests`) + snapshot |
+| 1 | Island hangs from the real notch | The 5 pt gap shows beside the notch on both sides; the island's bottom (1 pt past the notch) hides the notch's rounded corners with no seam | pending | manual (`IslandLayout.topGap` / `bottomOverhang` are the knobs) |
 | 2 | Write, edit, delete session files by hand (`pid: 1`) | Dot appears or changes within 100 ms; deleting removes it; slots keep order when a middle session leaves | 2026-09-24 | unit (`SessionStoreTests`) + snapshot |
 | 2 | Write a file with a dead `pid` | Dot disappears within 10 s | 2026-09-24 | unit (`testPruneRemovesDeadProcessesAndKeepsLiveOnes`) |
-| 2 | Five sessions | Four dots and "+1" in the notch; all five in the open list, duplicate folders show a short id | 2026-09-24 | snapshot |
+| 2 | Seven sessions | Six dots, three per wing, and "+1" on the right wing; all seven in the open list | 2026-09-24 | unit (`IslandLayoutTests`, `SessionStoreTests`); snapshot for six dots, "+N" by unit only |
 | 3 | Hook script: each state, unchanged-state skip, `idle_done`, `gone`, no stdout, exit 0, with and without jq | Files match the format exactly | 2026-09-24 | unit (`HookInstallerTests`, runs the real script through bash) |
 | 3 | Install into an empty, an unrelated, and an already-installed `settings.json`; uninstall; invalid JSON | Only `notch.sh` entries added or removed; every other key survives; invalid JSON refused, original unchanged, no backup written | 2026-09-24 | unit |
 | 3 | Four real `claude` sessions; one permission prompt; one `/exit`; one `kill -9` | Colours follow the state machine; `/exit` removes the dot at once; `kill -9` within 10 s | pending | manual (hooks were deliberately not installed into the real `~/.claude/settings.json` during the build) |

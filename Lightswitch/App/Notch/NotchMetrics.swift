@@ -17,8 +17,8 @@ enum NotchMetrics {
     static let closedInset: CGFloat = 10
     static let openInset: CGFloat = 10
 
-    static let closedRadii = (top: CGFloat(6), bottom: CGFloat(14))
-    static let openRadii = (top: CGFloat(19), bottom: CGFloat(24))
+    /// Corner radius of the open panel; closed, the island is a capsule.
+    static let openRadius: CGFloat = 24
 
     /// Hover has to persist this long before the notch opens, so passing the
     /// cursor over the menu bar does not flap it.
