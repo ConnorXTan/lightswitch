@@ -16,10 +16,24 @@ final class NotchCoordinator: ObservableObject {
     }
 
     @Published private(set) var peek: Peek?
+    /// Whether the Claude Code hooks are installed; drives the empty state.
+    @Published var hooksInstalled = true
     private var peekTask: Task<Void, Never>?
     private var viewModels: [String: NotchViewModel] = [:]
 
+    /// Wired by the app: focus the terminal that owns a session.
+    var selectSession: (Session) -> Void = { _ in }
+    /// Wired by the app once the installer exists.
+    var installHooksAction: () -> Void = {}
+
     private init() {}
+
+    func select(_ session: Session) {
+        SessionStore.shared.acknowledge(session.id)
+        selectSession(session)
+    }
+
+    func installHooks() { installHooksAction() }
 
     // MARK: Windows
 

@@ -6,6 +6,7 @@ import LightswitchKit
 struct ContentView: View {
     @EnvironmentObject private var vm: NotchViewModel
     @EnvironmentObject private var coordinator: NotchCoordinator
+    @EnvironmentObject private var store: SessionStore
     @AppStorage(Preferences.openOnHoverKey) private var openOnHover = true
 
     @State private var hovering = false
@@ -14,6 +15,15 @@ struct ContentView: View {
     private var shape: NotchShape {
         NotchShape(topRadius: vm.isOpen ? NotchMetrics.openRadii.top : NotchMetrics.closedRadii.top,
                    bottomRadius: vm.isOpen ? NotchMetrics.openRadii.bottom : NotchMetrics.closedRadii.bottom)
+    }
+
+    /// The closed shape grows a wing to the right of the physical notch to hold
+    /// the dots (the notch itself has no pixels). Shifting the whole shape by
+    /// half the wing keeps the notch part exactly over the hardware.
+    private var wingWidth: CGFloat {
+        guard vm.state == .closed, coordinator.peek == nil, vm.hasNotch else { return 0 }
+        return DotMetrics.wingWidth(slots: DotMetrics.slotsShown(store.slotted),
+                                    overflow: store.overflow.count)
     }
 
     var body: some View {
@@ -25,9 +35,11 @@ struct ContentView: View {
                         radius: 14, x: 0, y: 8)
                 .contentShape(Rectangle())
                 .onHover(perform: handleHover)
+                .offset(x: wingWidth / 2)
                 .animation(vm.isOpen ? NotchMetrics.openAnimation : NotchMetrics.closeAnimation,
                            value: vm.state)
                 .animation(NotchMetrics.peekAnimation, value: coordinator.peek)
+                .animation(.smooth(duration: 0.3), value: wingWidth)
             Spacer(minLength: 0)
         }
         .frame(width: NotchMetrics.windowSize.width,
@@ -80,19 +92,34 @@ struct ContentView: View {
 
 // MARK: - Closed
 
-/// Exactly the physical notch, black on black. Its content sits inside a
-/// 10 pt inset on each side.
+/// On a notched display: the physical notch (no pixels, so nothing is drawn
+/// there) plus a wing on the right holding the dots. On other displays the
+/// closed shape is a pill over the menu bar and the dots sit centred in it.
 struct ClosedLayout: View {
     @EnvironmentObject private var vm: NotchViewModel
+    @EnvironmentObject private var store: SessionStore
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Phase 2 places the session dots here.
-            Color.clear
+        if vm.hasNotch {
+            HStack(spacing: 0) {
+                Color.clear
+                    .frame(width: vm.closedSize.width, height: vm.closedSize.height)
+                let wing = DotMetrics.wingWidth(slots: DotMetrics.slotsShown(store.slotted),
+                                                overflow: store.overflow.count)
+                if wing > 0 {
+                    DotsRow()
+                        .frame(width: wing - DotMetrics.insetLeading - DotMetrics.insetTrailing,
+                               height: vm.closedSize.height)
+                        .padding(.leading, DotMetrics.insetLeading)
+                        .padding(.trailing, DotMetrics.insetTrailing)
+                }
+            }
+        } else {
+            DotsRow()
+                .frame(width: vm.closedSize.width - NotchMetrics.closedInset * 2,
+                       height: vm.closedSize.height)
+                .padding(.horizontal, NotchMetrics.closedInset)
         }
-        .frame(width: vm.closedSize.width - NotchMetrics.closedInset * 2,
-               height: vm.closedSize.height)
-        .padding(.horizontal, NotchMetrics.closedInset)
     }
 }
 
@@ -130,29 +157,40 @@ struct PeekLayout: View {
 /// notch so nothing is drawn behind it.
 struct OpenLayout: View {
     @EnvironmentObject private var vm: NotchViewModel
+    @EnvironmentObject private var store: SessionStore
+    @EnvironmentObject private var coordinator: NotchCoordinator
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 4) {
             HStack(spacing: 0) {
                 Text("Claude Code")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.55))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Color.clear
-                    .frame(width: vm.closedSize.width + NotchMetrics.closedInset)
-                Color.clear
-                    .frame(maxWidth: .infinity)
+                    .frame(width: vm.hasNotch ? vm.closedSize.width + NotchMetrics.closedInset : 0)
+                Text(summary)
+                    .font(.system(size: 11, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.45))
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
+            .padding(.horizontal, 10)
             .frame(height: vm.closedSize.height)
 
-            // Phase 2 replaces this with the session list.
-            Text("No sessions")
-                .font(.system(size: 13))
-                .foregroundStyle(.white.opacity(0.4))
-                .frame(maxWidth: .infinity, minHeight: 44)
+            SessionListView(hooksInstalled: coordinator.hooksInstalled,
+                            onInstallHooks: { coordinator.installHooks() },
+                            onSelect: { coordinator.select($0) })
         }
-        .padding(.horizontal, NotchMetrics.openInset)
-        .padding(.bottom, NotchMetrics.openInset)
+        .padding(.horizontal, NotchMetrics.openInset - 4)
+        .padding(.bottom, NotchMetrics.openInset - 4)
         .frame(width: NotchMetrics.openWidth)
+    }
+
+    private var summary: String {
+        let red = store.sessions.filter { $0.state == .needsYou }.count
+        if red > 0 { return red == 1 ? "1 needs you" : "\(red) need you" }
+        let n = store.sessions.count
+        return n == 0 ? "" : (n == 1 ? "1 session" : "\(n) sessions")
     }
 }

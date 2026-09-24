@@ -131,11 +131,17 @@ public final class SessionStore: ObservableObject {
         for id in firstSeen.keys where !ids.contains(id) { firstSeen[id] = nil }
         acknowledged = acknowledged.intersection(ids)
 
+        // Sessions that arrive together (the first load after launch) are
+        // ordered by their last update, oldest first, so the list is stable
+        // and meaningful rather than following directory order.
+        let newcomers = found.filter { firstSeen[$0.id] == nil }
+            .sorted { ($0.updatedAt, $0.id) < ($1.updatedAt, $1.id) }
+        for session in newcomers {
+            order += 1
+            firstSeen[session.id] = Date(timeIntervalSinceReferenceDate: Double(order))
+        }
+
         for session in found {
-            if firstSeen[session.id] == nil {
-                order += 1
-                firstSeen[session.id] = Date(timeIntervalSinceReferenceDate: Double(order))
-            }
             if let old = previous[session.id], old.state != session.state {
                 acknowledged.remove(session.id)
             }

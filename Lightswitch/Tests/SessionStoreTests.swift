@@ -88,6 +88,16 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(store.slotted.map { $0?.id }, ["a", "d", "c", nil])
     }
 
+    func testBatchArrivalsAreOrderedByLastUpdate() throws {
+        try write("zz", state: "working", updatedAt: 300)
+        try write("mm", state: "working", updatedAt: 100)
+        try write("aa", state: "working", updatedAt: 200)
+        store.reload()
+        XCTAssertEqual(store.sessions.map(\.id), ["mm", "aa", "zz"])
+        XCTAssertEqual(store.slot(of: "mm"), 1)
+        XCTAssertEqual(store.slot(of: "zz"), 3)
+    }
+
     func testFifthSessionOverflows() throws {
         for id in ["a", "b", "c", "d", "e"] {
             try write(id, state: "working")

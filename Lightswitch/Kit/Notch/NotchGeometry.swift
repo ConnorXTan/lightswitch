@@ -36,6 +36,24 @@ public enum NotchGeometry {
                    menuBarHeight: screen.frame.maxY - screen.visibleFrame.maxY)
     }
 
+    /// The horizontal centre of the physical notch in screen coordinates. The
+    /// notch is not always centred on the panel (this 14-inch is 1.5 pt off),
+    /// so the window is centred on the notch, not the screen.
+    public static func notchCenterX(screenMinX: CGFloat, screenWidth: CGFloat,
+                                    leftAuxWidth: CGFloat?, rightAuxWidth: CGFloat?) -> CGFloat {
+        if let l = leftAuxWidth, let r = rightAuxWidth, l > 0, r > 0, screenWidth > l + r {
+            return screenMinX + l + (screenWidth - l - r) / 2
+        }
+        return screenMinX + screenWidth / 2
+    }
+
+    @MainActor
+    public static func notchCenterX(for screen: NSScreen) -> CGFloat {
+        notchCenterX(screenMinX: screen.frame.minX, screenWidth: screen.frame.width,
+                     leftAuxWidth: screen.auxiliaryTopLeftArea?.width,
+                     rightAuxWidth: screen.auxiliaryTopRightArea?.width)
+    }
+
     @MainActor
     public static func hasNotch(_ screen: NSScreen) -> Bool {
         screen.safeAreaInsets.top > 0
