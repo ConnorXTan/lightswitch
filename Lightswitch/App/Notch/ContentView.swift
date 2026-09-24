@@ -28,11 +28,12 @@ struct ContentView: View {
     }
 
     /// Each layout draws its own black surface. The panel and the peek grow
-    /// out of the notch through `Reveal`: an animated clip from the notch's
-    /// centred silhouette to their full outline, so nothing slides and
-    /// nothing fades. The closed shape waits underneath (lower z) until the
-    /// growing panel has covered it, and is back in place before the panel
-    /// shrinks past it. Hover is tracked on this container, which outlives
+    /// out of the closed box through `Reveal`: an animated clip from the
+    /// closed silhouette (notch plus wing) to their full outline, in one
+    /// motion, content revealed by the clip. The closed layout sits above
+    /// them: its dots fade out quickly as the box starts to grow, and fade
+    /// back in as the box finishes shrinking. Hover is tracked on this
+    /// container, which outlives
     /// the layouts, so swapping them cannot fire a stray mouse-out. The state
     /// changes themselves are animated where they are made (`NotchViewModel`,
     /// `showPeek`).
@@ -57,13 +58,13 @@ struct ContentView: View {
         case .open:
             OpenLayout()
                 .surface(radii: NotchMetrics.openRadii)
-                .transition(Reveal.transition(closed: vm.closedSize, lift: 0.5))
+                .transition(Reveal.transition(closed: vm.closedSize, wing: closedWing, lift: 0.5))
                 .zIndex(1)
         case .closed:
             if let peek = coordinator.peek {
                 PeekLayout(peek: peek)
                     .surface(radii: NotchMetrics.closedRadii)
-                    .transition(Reveal.transition(closed: vm.closedSize, lift: 0))
+                    .transition(Reveal.transition(closed: vm.closedSize, wing: closedWing, lift: 0))
                     .zIndex(1)
             } else {
                 ClosedLayout()
@@ -71,11 +72,12 @@ struct ContentView: View {
                     .shadow(color: .black.opacity(hovering ? 0.5 : 0), radius: 14, x: 0, y: 8)
                     .offset(x: closedWing / 2)
                     .animation(.smooth(duration: 0.3), value: closedWing)
-                    // Appears at once when closing (it is under the panel);
-                    // when opening it stays until the panel has grown over it.
-                    .transition(.asymmetric(insertion: .identity,
-                                            removal: .opacity.animation(.linear(duration: 0.01).delay(0.25))))
-                    .zIndex(0)
+                    // Above the growing box: the dots fade out as it starts to
+                    // grow, and fade back in as it finishes shrinking.
+                    .transition(.asymmetric(
+                        insertion: .opacity.animation(.linear(duration: 0.1).delay(0.35)),
+                        removal: .opacity.animation(.linear(duration: 0.12))))
+                    .zIndex(2)
             }
         }
     }

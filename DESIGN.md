@@ -289,9 +289,8 @@ The notch silhouette (`NotchShape`): a rectangle whose top corners flare
 `t`) so the black blends into the bezel, and whose bottom corners round inward
 (radius `b`). Closed: t 6, b 14. Open: t 19, b 24. The radii animate
 during the open and close, inside `RevealShape`: the panel's outline grows
-from the notch's centred silhouette, not from the closed shape, because
-the closed shape sits right of centre (its wing) and morphing it made the
-panel slide into place. The app icon draws the same silhouette at t = 10 % and
+from the whole closed box, wing included, so the box is what expands (its
+centre moves 25 pt left over the growth, as part of the one motion). The app icon draws the same silhouette at t = 10 % and
 b = 30 % of its notch height, hanging from a squircle tile with corner radius
 22.5 % of the tile.
 
@@ -320,7 +319,7 @@ rectangles; the install button and the ratio bar are capsules.
 
 ### Open Panel Header
 - Left: "Claude Code", 11 pt semibold at white 55 %. Right: the summary ("1 needs you", "6 terminals"; the project count is not shown, the headers below carry it), 11 pt medium, monospaced digits, white 45 %. Both one line. The middle is clear over the notch.
-- The panel grows out of the notch and shrinks back into it (`Reveal`): an animated clip on the panel that starts as the notch's own silhouette (notch width and height, centred, closed radii) and expands to the panel's outline, radii interpolating 6/14 → 19/24; the shadow is applied after the clip and fades in with it. Content is revealed by the clip, never faded. The closed shape sits under the panel (lower z) and is only removed 0.25 s into the open, once covered; on close it is back at once, under the shrinking panel. Open spring `response 0.36, damping 0.86` (it arrives, it does not bounce); close spring `response 0.45, damping 1.0`. The peek uses the same reveal, without a shadow.
+- The panel grows out of the notch and shrinks back into it (`Reveal`): an animated clip on the panel that starts as the whole closed box (notch plus wing, closed radii, exactly where the closed shape sits) and expands to the panel's outline in one motion, radii interpolating 6/14 → 19/24; the shadow is applied after the clip and fades in with it. Content is revealed by the clip, never faded. The closed layout sits above the panel: its dots fade out over 0.12 s as the box starts to grow, and fade back in over 0.1 s from 0.35 s into the close, as the box finishes shrinking. Open spring `response 0.36, damping 0.86` (it arrives, it does not bounce); close spring `response 0.45, damping 1.0`. The peek uses the same reveal, without a shadow.
 - Opens after the pointer rests 300 ms; closes 100 ms after it leaves.
 
 ### Session Row
