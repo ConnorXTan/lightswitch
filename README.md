@@ -42,6 +42,11 @@ Claude is working again. `SessionEnd` deletes the file; sessions that die
 without it (`kill -9`, a closed terminal window) are pruned when their process
 is gone.
 
+Hover the notch and it opens into a list grouped by project: the folder as a
+header, and under it each Claude terminal ("VS Code · ttys004") with its state
+and how long ago it changed. Two projects with the same folder name show
+where they live.
+
 When a session turns red the notch widens for three seconds to say which
 folder and plays a sound (Settings turns it off). The dot keeps pulsing until
 you click it, cover the notch, or the state changes.

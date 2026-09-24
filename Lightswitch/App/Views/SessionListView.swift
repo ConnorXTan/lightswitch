@@ -1,58 +1,97 @@
 import SwiftUI
 import LightswitchKit
 
-/// The open notch's body: one row per session, or what to do when there
-/// are none.
+/// The open notch's body: each project with its Claude terminals under it,
+/// or what to do when there are none.
 struct SessionListView: View {
     @EnvironmentObject private var store: SessionStore
     var hooksInstalled: Bool = true
     var onInstallHooks: () -> Void = {}
     var onSelect: (Session) -> Void = { _ in }
 
-    private static let visibleRows = 6
+    /// Rows (headers and terminals) shown before the list scrolls.
+    private static let visibleRows = 9
+    private static let maxHeight: CGFloat = 262
 
     var body: some View {
         if store.sessions.isEmpty {
             EmptySessionsView(hooksInstalled: hooksInstalled, onInstallHooks: onInstallHooks)
         } else {
             TimelineView(.periodic(from: .now, by: 10)) { context in
-                let duplicates = duplicateFolders
-                let rows = VStack(spacing: 1) {
-                    ForEach(store.sessions) { session in
-                        SessionRow(session: session,
-                                   acknowledged: store.isAcknowledged(session.id),
-                                   showID: duplicates.contains(session.folderName),
-                                   now: context.date) {
-                            onSelect(session)
+                let groups = store.groups
+                let duplicates = duplicateNames(groups)
+                let list = VStack(alignment: .leading, spacing: 6) {
+                    ForEach(groups) { group in
+                        VStack(alignment: .leading, spacing: 1) {
+                            ProjectHeader(group: group, showLocation: duplicates.contains(group.name))
+                            ForEach(group.sessions) { session in
+                                SessionRow(session: session,
+                                           acknowledged: store.isAcknowledged(session.id),
+                                           now: context.date) {
+                                    onSelect(session)
+                                }
+                            }
                         }
                     }
                 }
-                if store.sessions.count > Self.visibleRows {
-                    ScrollView(.vertical) { rows }
-                        .frame(height: CGFloat(Self.visibleRows) * (SessionRow.height + 1))
+                if groups.count + store.sessions.count > Self.visibleRows {
+                    ScrollView(.vertical) { list }
+                        .frame(height: Self.maxHeight)
                 } else {
-                    rows
+                    list
                 }
             }
         }
     }
 
-    private var duplicateFolders: Set<String> {
+    private func duplicateNames(_ groups: [ProjectGroup]) -> Set<String> {
         var seen: Set<String> = []
         var dup: Set<String> = []
-        for s in store.sessions {
-            if !seen.insert(s.folderName).inserted { dup.insert(s.folderName) }
+        for g in groups {
+            if !seen.insert(g.name).inserted { dup.insert(g.name) }
         }
         return dup
     }
 }
 
+/// The project line: folder name, and where it lives when two projects
+/// share a name.
+struct ProjectHeader: View {
+    let group: ProjectGroup
+    let showLocation: Bool
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(group.name)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            if showLocation {
+                Text(group.location)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .lineLimit(1)
+                    .truncationMode(.head)
+            }
+            Spacer(minLength: 8)
+            Text(group.sessions.count == 1 ? "1 terminal" : "\(group.sessions.count) terminals")
+                .font(.system(size: 11))
+                .monospacedDigit()
+                .foregroundStyle(.white.opacity(0.4))
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 26)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// One Claude terminal inside a project.
 struct SessionRow: View {
-    static let height: CGFloat = 32
+    static let height: CGFloat = 28
 
     let session: Session
     let acknowledged: Bool
-    let showID: Bool
     let now: Date
     let onSelect: () -> Void
 
@@ -61,16 +100,11 @@ struct SessionRow: View {
     var body: some View {
         HStack(spacing: 10) {
             SessionDot(session: session, acknowledged: acknowledged)
-            Text(session.folderName)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
+            Text(session.terminalLabel)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.85))
                 .lineLimit(1)
                 .truncationMode(.middle)
-            if showID {
-                Text(session.shortID)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.4))
-            }
             Spacer(minLength: 8)
             Text(session.state.label)
                 .font(.system(size: 12, weight: .medium))
@@ -81,7 +115,8 @@ struct SessionRow: View {
                 .foregroundStyle(.white.opacity(0.4))
                 .frame(width: 32, alignment: .trailing)
         }
-        .padding(.horizontal, 10)
+        .padding(.leading, 22)
+        .padding(.trailing, 10)
         .frame(height: Self.height)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -92,7 +127,7 @@ struct SessionRow: View {
         .onTapGesture(perform: onSelect)
         .animation(.easeOut(duration: 0.12), value: hovering)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(session.folderName) \(session.state.announcement), \(session.age(at: now))")
+        .accessibilityLabel("\(session.folderName), \(session.terminalLabel), \(session.state.announcement), \(session.age(at: now))")
         .accessibilityAddTraits(.isButton)
     }
 }

@@ -213,6 +213,34 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertTrue(store.sessions.isEmpty)
     }
 
+    // MARK: Projects
+
+    func testSessionsGroupByWorkingDirectoryInFirstAppearanceOrder() throws {
+        try write("a", state: "working", cwd: "/Users/connortan/Documents/GitHub/lightswitch", updatedAt: 100)
+        try write("b", state: "needs_you", cwd: "/Users/connortan/MARs/MARS", updatedAt: 200)
+        try write("c", state: "idle", cwd: "/Users/connortan/Documents/GitHub/lightswitch", updatedAt: 300)
+        store.reload()
+        let groups = store.groups
+        XCTAssertEqual(groups.map(\.name), ["lightswitch", "MARS"])
+        XCTAssertEqual(groups[0].sessions.map(\.id), ["a", "c"])
+        XCTAssertEqual(groups[0].attention, .working)
+        XCTAssertEqual(groups[1].attention, .needsYou)
+        XCTAssertEqual(groups[0].location, "~/Documents/GitHub")
+    }
+
+    func testGroupWithoutAWorkingDirectoryIsStillListed() {
+        let g = ProjectGroup(cwd: "", sessions: [Session(id: "x1234", state: .idle, cwd: "")])
+        XCTAssertEqual(g.name, "untitled")
+        XCTAssertEqual(g.location, "")
+    }
+
+    func testTerminalLabelNamesTheAppAndTheTab() {
+        XCTAssertEqual(Session(id: "abcd9999", state: .idle, cwd: "/p", tty: "ttys004", termProgram: "vscode").terminalLabel,
+                       "VS Code · ttys004")
+        XCTAssertEqual(Session(id: "abcd9999", state: .idle, cwd: "/p", tty: "", termProgram: "").terminalLabel,
+                       "Terminal · 9999")
+    }
+
     // MARK: Age
 
     func testAgeFormatting() {

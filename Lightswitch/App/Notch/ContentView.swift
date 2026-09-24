@@ -213,6 +213,9 @@ struct OpenLayout: View {
         let red = store.sessions.filter { $0.state == .needsYou }.count
         if red > 0 { return red == 1 ? "1 needs you" : "\(red) need you" }
         let n = store.sessions.count
-        return n == 0 ? "" : (n == 1 ? "1 session" : "\(n) sessions")
+        let p = store.groups.count
+        if n == 0 { return "" }
+        let sessions = n == 1 ? "1 terminal" : "\(n) terminals"
+        return p > 1 ? "\(sessions) · \(p) projects" : sessions
     }
 }
