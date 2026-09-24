@@ -66,7 +66,7 @@ shade the sensor.
 
 **Terminals.** Clicking a session brings its terminal forward: the exact tab
 in iTerm and Terminal (via AppleScript, which asks for Automation permission
-once), the folder's window in VS Code and Cursor, the app for Ghostty, kitty,
+once), the window whose terminal runs the session in VS Code and Cursor (found from the terminal shell's directory and the editor's own list of open windows, so a session that moved into a worktree still lands in its window), the app for Ghostty, kitty,
 WezTerm, Warp and the rest.
 
 The app is a menu-bar accessory for macOS 14 or newer, shown on every display

@@ -73,14 +73,16 @@ public enum TerminalKind: Equatable, CaseIterable {
 /// Brings the terminal that owns a Claude Code session to the front.
 ///
 /// iTerm and Terminal can select the exact tab by tty through AppleScript.
-/// VS Code cannot be scripted that way, but opening the session's folder
-/// with it brings forward the window that already has that folder open.
+/// VS Code cannot be scripted that way, but asking it to open a folder one
+/// of its windows already has brings that window forward; `TerminalWindow`
+/// works out which folder that is (the session may have moved into a
+/// worktree while its terminal stayed in the repository's window).
 /// Everything else is simply activated.
 public enum TerminalFocuser {
     public enum Result: Equatable {
         case focusedTab
         case activatedApp
-        case openedFolder
+        case openedFolder(String)
         case notRunning
         case scriptFailed(String)
     }
@@ -148,7 +150,7 @@ public enum TerminalFocuser {
     /// Focuses the terminal for a session. Never throws; the result says how
     /// far it got.
     @MainActor
-    public static func focus(termProgram: String, tty: String, cwd: String) -> Result {
+    public static func focus(termProgram: String, tty: String, cwd: String, pid: pid_t = 0) -> Result {
         let kind = TerminalKind(termProgram: termProgram)
         var scriptError: String?
 
@@ -169,13 +171,14 @@ public enum TerminalFocuser {
         }
 
         if kind == .vscode, !cwd.isEmpty, let appURL = app.bundleURL {
-            let folder = URL(fileURLWithPath: cwd, isDirectory: true)
+            let path = TerminalWindow.folder(forSessionAt: cwd, pid: pid)
+            let folder = URL(fileURLWithPath: path, isDirectory: true)
             if FileManager.default.fileExists(atPath: folder.path) {
                 let configuration = NSWorkspace.OpenConfiguration()
                 configuration.activates = true
                 NSWorkspace.shared.open([folder], withApplicationAt: appURL,
                                         configuration: configuration) { _, _ in }
-                return .openedFolder
+                return .openedFolder(path)
             }
         }
 
