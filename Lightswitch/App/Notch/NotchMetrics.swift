@@ -8,8 +8,10 @@ enum NotchMetrics {
     /// alert peek, tall enough for the open list plus its shadow.
     static let windowSize = CGSize(width: 640, height: 360)
 
-    /// Width of the open panel.
-    static let openWidth: CGFloat = 400
+    /// Width of the open panel. Beside the header's clear notch gap this
+    /// leaves 87 pt a side, enough for "Claude Code" (70 pt) and
+    /// "12 terminals" (65 pt) on one line.
+    static let openWidth: CGFloat = 440
     /// Width of the closed shape while an alert peek is showing.
     static let peekWidth: CGFloat = 640
 
