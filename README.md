@@ -1,14 +1,85 @@
 # lightswitch
 
-Turns the MacBook's ambient light sensor into a button. Run it bare and the
-notch becomes a music switch: a glow ring appears around it, and covering it
-with your hand toggles play/pause — about 300 ms from hand to music, in any
-room brighter than candlelight.
+Turns the MacBook notch into a status light for Claude Code, and the ambient
+light sensor behind it into a button.
 
-Under the default there is a full gesture engine: cup your hand over the
-top-centre of the display and the shadow can be a quick **tap**, a
-**double-tap**, or a **hold**, each bindable to a keystroke, a shell command,
-or a media key.
+Run the app and one dot per running Claude Code session appears beside the
+notch: yellow while Claude works, red when it is waiting on you, green when it
+is done. Hover to see the list; click a dot to jump to that terminal. Cup your
+hand over the notch and the session that needs you comes to the front. The
+notch never had a job before; now it has one.
+
+Under it is the original tool: a full gesture engine over a sensor with no
+public API, one bit of usable signal, and a refresh rate of 4.7 Hz. Run
+`lightswitch` bare and the notch is a music switch; bind a **tap**,
+**double-tap** or **hold** to any keystroke, shell command or media key.
+
+## The app
+
+```
+make app && open build/Lightswitch.app
+```
+
+Then **Install hooks** from the menu bar icon, or from the empty notch. That
+adds eight hook entries (six events) to `~/.claude/settings.json` (backed up to
+`settings.json.bak` first, nothing else touched), each running
+`~/.claude/hooks/notch.sh`. From then on every Claude Code session writes one
+small JSON file to `~/.claude-notch/sessions/` as it changes state, and the
+app watches that folder. Sessions run exactly the same with the app closed;
+state lives in files it only reads.
+
+| Dot | Meaning | Written by |
+| --- | --- | --- |
+| grey | idle: session started, nothing asked yet | `SessionStart` |
+| yellow | working | `UserPromptSubmit`, `PostToolUse` |
+| red, pulsing | needs you: a permission prompt or a question | `Notification` (`permission_prompt`, `elicitation_dialog`) |
+| green | done, waiting for your next message | `Stop` |
+| green, breathing | done and Claude has been waiting a while | `Notification` (`idle_prompt`) |
+
+`PostToolUse` is the transition people forget: after you approve a permission
+prompt no `UserPromptSubmit` fires, so without it the dot would stay red while
+Claude is working again. `SessionEnd` deletes the file; sessions that die
+without it (`kill -9`, a closed terminal window) are pruned when their process
+is gone.
+
+When a session turns red the notch widens for three seconds to say which
+folder and plays a sound (Settings turns it off). The dot keeps pulsing until
+you click it, cover the notch, or the state changes.
+
+**The gesture.** With the sensor on (Settings → Light sensor), covering the
+notch does one thing, your choice: jump to the session that needs you (else
+open the notch), just open the notch, acknowledge the red dots, play/pause the
+music, or the original ⌘W. It fires about 300 ms after your hand arrives,
+which is the hardware floor; see [docs/SIGNAL.md](docs/SIGNAL.md). Turn off
+**Displays → Automatically adjust brightness** or macOS dims the screen as you
+shade the sensor.
+
+**Terminals.** Clicking a session brings its terminal forward: the exact tab
+in iTerm and Terminal (via AppleScript, which asks for Automation permission
+once), the folder's window in VS Code and Cursor, the app for Ghostty, kitty,
+WezTerm, Warp and the rest.
+
+The app is a menu-bar accessory for macOS 14 or newer, shown on every display
+or just the built-in one. It is not sandboxed: the sensor is reached through
+private IOKit HID calls that the sandbox blocks.
+
+### Developing the app
+
+```
+swift build            debug binary in .build/debug/Lightswitch
+swift test             the Swift suite (session store, hook installer, sensor bridge, terminal focus)
+open Package.swift     the same targets in Xcode
+make app               release build wrapped as build/Lightswitch.app, icon included
+```
+
+Two environment variables make the app drivable from a terminal:
+`LIGHTSWITCH_SESSIONS_DIR` points it at a folder of hand-written session
+files, and with `LIGHTSWITCH_SNAPSHOT_DIR` set, `kill -USR1` writes a PNG of
+every notch window there (`kill -USR2` toggles the notch open). Both are how
+the layouts in this README were checked; the recipe is in
+[docs/testing.md](docs/testing.md).
+
+## The command-line tool
 
 ```console
 $ lightswitch --on-hold key:cmd+w --on-double-tap 'exec:pmset displaysleepnow'
@@ -203,6 +274,15 @@ The layering exists so the interesting logic is testable without hardware:
 | `src/sensor_replay.c` | a recorded trace, same interface | yes |
 | `src/overlay_macos.m` | the notch glow window; draws what `glow.c` decides | macOS only |
 | `src/mediakey_macos.m` | posts media key events for `media:` actions | macOS only |
+| `Lightswitch/Kit/Sessions` | session files → published list; slots, pruning, alerts | Swift, tested |
+| `Lightswitch/Kit/Hooks` | `notch.sh` and the installer that merges it into `settings.json` | Swift, tested |
+| `Lightswitch/Kit/Sensor` | `SensorEngine` wraps the C detector; `LightSensor` runs it on a thread | Swift, tested |
+| `Lightswitch/Kit/Terminal` | which terminal owns a session and how to bring it forward | Swift, tested |
+| `Lightswitch/App` | the notch window, shape, dots, list, settings, menu bar | Swift, AppKit + SwiftUI |
+
+The app does not re-implement any of the C: `Package.swift` exposes `src/` and
+`include/` to Swift as the `CLightswitch` module, so the gesture the app reacts
+to is decided by the same `detector.c` the CLI and the fixtures use.
 
 `detector.c` performs no I/O and calls nothing platform-specific: it takes
 `(timestamp, lux)` and returns gestures. Everything awkward about the signal —
@@ -219,10 +299,14 @@ proportional noise, and the finite time a hand takes to arrive. Regenerate with
 make        build            make test     304 assertions, no hardware needed
 make demo   replay fixtures  make traces   regenerate fixtures
 make ci     -Werror + tests  make install  to $(PREFIX)/bin
+make app    the notch app    swift test    the Swift suite
 ```
 
 ## Notes and limits
 
+- The app's hooks are ordinary Claude Code hooks; `notch.sh` prints nothing,
+  always exits 0, and needs nothing installed (`jq` if present, `plutil`
+  otherwise), so it can never block or slow a session.
 - Turn off **System Settings → Displays → "Automatically adjust brightness"**,
   or macOS dims the screen as you shade the sensor and fights the detection.
 - `key:` and `media:` actions need Accessibility permission (**Privacy &

@@ -55,7 +55,7 @@ TEST_BIN := $(patsubst tests/%.c,$(BUILD)/%,$(TEST_SRC))
 TRACES := idle tap double_tap hold walk_past drift dark office_session
 TRACE_FILES := $(patsubst %,tests/traces/%.lstrace,$(TRACES))
 
-.PHONY: all test demo traces ci clean install uninstall help app run swift swift-test
+.PHONY: all test demo traces ci clean install uninstall help app run swift swift-test icon
 
 all: $(BUILD)/lightswitch
 
@@ -140,8 +140,15 @@ help:
 # extra, LSUIElement, Automation permission for terminal focus).
 
 APP        := $(BUILD)/Lightswitch.app
+ICNS       := $(BUILD)/Lightswitch.icns
 SWIFT_REL  := .build/release/Lightswitch
 SWIFT_SRC  := Package.swift $(shell find Lightswitch src include -type f 2>/dev/null)
+
+$(ICNS): tools/mkicon.swift | $(BUILD)
+	swift tools/mkicon.swift $(BUILD)/Lightswitch.iconset
+	iconutil -c icns $(BUILD)/Lightswitch.iconset -o $(ICNS)
+
+icon: $(ICNS)
 
 swift:
 	swift build
@@ -151,14 +158,13 @@ swift-test:
 
 app: $(APP)
 
-$(APP): $(SWIFT_SRC)
+$(APP): $(SWIFT_SRC) $(ICNS)
 	swift build -c release
 	rm -rf $(APP)
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
 	cp $(SWIFT_REL) $(APP)/Contents/MacOS/Lightswitch
 	cp Lightswitch/Info.plist $(APP)/Contents/Info.plist
-	@if [ -f Lightswitch/Resources/Lightswitch.icns ]; then \
-	   cp Lightswitch/Resources/Lightswitch.icns $(APP)/Contents/Resources/; fi
+	cp $(ICNS) $(APP)/Contents/Resources/Lightswitch.icns
 	codesign --force --sign - $(APP)
 	@echo "built $(APP)"
 

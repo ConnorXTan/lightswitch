@@ -16,7 +16,12 @@ final class SensorController: ObservableObject {
     @Published private(set) var lastActionError: String?
 
     private var cancellables: Set<AnyCancellable> = []
-    private var observer: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
+    private var retryTimer: Timer?
+
+    /// The sensor disappears while the display sleeps and comes back when it
+    /// wakes; opening it too early fails. This is how often to try again.
+    static let retryInterval: TimeInterval = 30
 
     private init() {
         sensor.onCover = { [weak self] in self?.covered() }
@@ -24,20 +29,39 @@ final class SensorController: ObservableObject {
             .removeDuplicates()
             .sink { status in Log.note(Log.sensor, "sensor \(status)") }
             .store(in: &cancellables)
-        observer = NotificationCenter.default.addObserver(
+        observers.append(NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
+            Task { @MainActor in self?.apply() }
+        })
+        for name in [NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification] {
+            observers.append(NSWorkspace.shared.notificationCenter.addObserver(
+                forName: name, object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.wake() }
+            })
+        }
+        retryTimer = Timer.scheduledTimer(withTimeInterval: Self.retryInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.apply() }
         }
     }
 
-    /// Starts or stops the sensor to match the setting. Safe to call often.
+    /// Starts or stops the sensor to match the setting. Safe to call often:
+    /// the retry timer calls it so an `unavailable` sensor is re-opened once
+    /// the display is awake again.
     func apply() {
         if Preferences.sensorEnabled {
             if !sensor.isRunning { sensor.start() }
         } else if sensor.isRunning {
             sensor.stop()
         }
+    }
+
+    /// After sleep the ambient baseline is stale and the sensor may have
+    /// gone away: restart it from scratch.
+    private func wake() {
+        guard Preferences.sensorEnabled else { return }
+        sensor.restart()
     }
 
     func recalibrate() {

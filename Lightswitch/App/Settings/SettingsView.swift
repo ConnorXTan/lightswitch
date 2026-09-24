@@ -92,7 +92,7 @@ struct SettingsView: View {
             } header: {
                 Text("Claude Code hooks")
             } footer: {
-                Text("Installing adds seven entries to ~/.claude/settings.json, each running ~/.claude/hooks/notch.sh, and backs the file up to settings.json.bak first. Nothing else in the file is touched. Sessions already running pick the hooks up on their next start.")
+                Text("Installing adds eight hook entries across six events to ~/.claude/settings.json, each running ~/.claude/hooks/notch.sh, and backs the file up to settings.json.bak first. Nothing else in the file is touched. Sessions already running pick the hooks up on their next start.")
                     .foregroundStyle(.secondary)
             }
         }

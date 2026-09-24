@@ -45,6 +45,10 @@ struct DotsRow: View {
             ForEach(0..<shown, id: \.self) { index in
                 SessionDot(session: slotted[index],
                            acknowledged: slotted[index].map { store.isAcknowledged($0.id) } ?? true)
+                    .contentShape(Rectangle().inset(by: -5))
+                    .onTapGesture {
+                        if let session = slotted[index] { NotchCoordinator.shared.select(session) }
+                    }
             }
             if !store.overflow.isEmpty {
                 Text("+\(store.overflow.count)")

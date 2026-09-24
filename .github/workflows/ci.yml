@@ -45,3 +45,15 @@ jobs:
           make clean
           make CFLAGS="-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer" test
           make CFLAGS="-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer" demo
+
+  app:
+    name: swift package
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test the Swift package
+        run: |
+          swift build
+          swift test
+      - name: Bundle the app
+        run: make app

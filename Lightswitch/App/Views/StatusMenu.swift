@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import SwiftUI
 import LightswitchKit
 
@@ -16,6 +17,9 @@ struct StatusMenu: View {
             NotchCoordinator.shared.toggleAll()
         }
         Divider()
+        if Bundle.main.bundleIdentifier != nil {
+            Toggle("Launch at Login", isOn: launchAtLogin)
+        }
         SettingsLink {
             Text("Settings…")
         }
@@ -25,6 +29,19 @@ struct StatusMenu: View {
             NSApp.terminate(nil)
         }
         .keyboardShortcut("q")
+    }
+
+    /// Registers the app as a login item; only meaningful from a bundle.
+    private var launchAtLogin: Binding<Bool> {
+        Binding(
+            get: { SMAppService.mainApp.status == .enabled },
+            set: { on in
+                do {
+                    if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+                } catch {
+                    Log.note(Log.app, "launch at login: \(error.localizedDescription)")
+                }
+            })
     }
 
     private var summary: String {
