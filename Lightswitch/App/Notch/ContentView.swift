@@ -19,6 +19,9 @@ struct ContentView: View {
     /// mouse-in follows until something else changes. So opening and closing
     /// are decided by where the pointer actually is.
     @State private var shapeSize: CGSize = .zero
+    /// The open panel's last measured height, so the panel's region is
+    /// known before it has opened.
+    @State private var openHeight: CGFloat = NotchMetrics.windowSize.height
     @State private var windowHandle = WindowHandle()
 
     /// The wing the closed shape grows to the right of the physical notch to
@@ -52,7 +55,10 @@ struct ContentView: View {
                 .contentShape(Rectangle().offset(x: closedOffset))
                 .onHover(perform: handleHover)
                 .background(GeometryReader { proxy in
-                    Color.clear.onChange(of: proxy.size, initial: true) { _, size in shapeSize = size }
+                    Color.clear.onChange(of: proxy.size, initial: true) { _, size in
+                        shapeSize = size
+                        if vm.isOpen, size.height > vm.closedSize.height { openHeight = size.height }
+                    }
                 })
             Spacer(minLength: 0)
         }
@@ -70,8 +76,11 @@ struct ContentView: View {
     }
 
     /// Whether the pointer is over the visible shape right now, from its
-    /// real position rather than the last hover event.
-    private func pointerInsideShape() -> Bool {
+    /// real position rather than the last hover event. With `expanded`,
+    /// the region is the open panel's whether or not it is open yet: from
+    /// the first hover the panel's whole area counts, so a hand that moves
+    /// down into it before the delay is up is not treated as leaving.
+    private func pointerInsideShape(expanded: Bool = false) -> Bool {
         // The window's frame, or where it would be: the window is centred on
         // the notch at the top of its screen.
         let frame: CGRect
@@ -85,7 +94,11 @@ struct ContentView: View {
             return false
         }
         var size = shapeSize
-        if size == .zero {
+        var offset = closedOffset
+        if expanded && !vm.isOpen {
+            size = CGSize(width: NotchMetrics.openWidth, height: openHeight)
+            offset = 0
+        } else if size == .zero {
             // No measurement yet: the layout's known size.
             if vm.isOpen {
                 size = CGSize(width: NotchMetrics.openWidth, height: NotchMetrics.windowSize.height)
@@ -95,7 +108,7 @@ struct ContentView: View {
                 size = CGSize(width: vm.closedSize.width + closedWing, height: vm.closedSize.height)
             }
         }
-        let x = frame.minX + (frame.width - size.width) / 2 + closedOffset
+        let x = frame.minX + (frame.width - size.width) / 2 + offset
         let rect = CGRect(x: x, y: frame.maxY - size.height, width: size.width, height: size.height)
         return rect.insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation)
     }
@@ -143,7 +156,7 @@ struct ContentView: View {
             openTask = Task { @MainActor in
                 try? await Task.sleep(for: NotchMetrics.hoverOpenDelay)
                 openTask = nil
-                guard !Task.isCancelled, !vm.isOpen, pointerInsideShape() else { return }
+                guard !Task.isCancelled, !vm.isOpen, pointerInsideShape(expanded: true) else { return }
                 vm.open()
                 startWatchdog()
             }
