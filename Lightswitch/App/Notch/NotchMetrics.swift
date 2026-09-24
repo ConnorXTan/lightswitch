@@ -33,7 +33,8 @@ enum NotchMetrics {
     /// Mouse-out closes after this debounce, so a wobble at the edge holds.
     static let hoverCloseDelay: Duration = .milliseconds(100)
 
-    static let openAnimation = Animation.spring(response: 0.42, dampingFraction: 0.8)
+    /// Quick, with barely any overshoot: the panel should arrive, not bounce.
+    static let openAnimation = Animation.spring(response: 0.36, dampingFraction: 0.86)
     static let closeAnimation = Animation.spring(response: 0.45, dampingFraction: 1.0)
     static let peekAnimation = Animation.smooth(duration: 0.3)
 }

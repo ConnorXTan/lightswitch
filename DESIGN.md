@@ -287,9 +287,12 @@ appears only as a response to state.
 The notch silhouette (`NotchShape`): a rectangle whose top corners flare
 *outward* into the screen edge (a quadratic curve from the very corner, radius
 `t`) so the black blends into the bezel, and whose bottom corners round inward
-(radius `b`). Closed: t 6, b 14. Open: t 19, b 24. Both radii are
-animatable, so opening reads as the notch growing rather than a panel
-appearing under it. The app icon draws the same silhouette at t = 10 % and
+(radius `b`). Closed: t 6, b 14. Open: t 19, b 24. The radii are
+animatable but no longer animated between the two: morphing the closed
+shape into the panel made it grow asymmetrically (the closed shape sits
+right of centre because of its wing) and slide into place, so since the
+`open-motion` branch the panel is its own surface that pops in over the
+closed shape. The app icon draws the same silhouette at t = 10 % and
 b = 30 % of its notch height, hanging from a squircle tile with corner radius
 22.5 % of the tile.
 
@@ -318,7 +321,7 @@ rectangles; the install button and the ratio bar are capsules.
 
 ### Open Panel Header
 - Left: "Claude Code", 11 pt semibold at white 55 %. Right: the summary ("1 needs you", "6 terminals"; the project count is not shown, the headers below carry it), 11 pt medium, monospaced digits, white 45 %. Both one line. The middle is clear over the notch.
-- The panel enters scaled from 0.9 at the top with a fade; open spring `response 0.42, damping 0.8`; close spring `response 0.45, damping 1.0`.
+- The panel enters scaled from 0.9 at the top with a fade, already centred on the notch, while the closed shape fades under it; open spring `response 0.36, damping 0.86` (barely any overshoot: it arrives, it does not bounce); close spring `response 0.45, damping 1.0`. The closed shape and the panel are separate surfaces, so nothing morphs or slides into place.
 - Opens after the pointer rests 300 ms; closes 100 ms after it leaves.
 
 ### Session Row
