@@ -15,7 +15,12 @@ enum NotchMetrics {
 
     /// Horizontal inset of content inside the closed shape.
     static let closedInset: CGFloat = 10
+    /// Bottom inset of the open panel's content.
     static let openInset: CGFloat = 10
+    /// Horizontal inset of the open panel's content. The shape's sides sit
+    /// inside its flared top corners by the top radius, so this is the
+    /// flare plus the margin that actually shows (14 pt to the text).
+    static let openSideInset: CGFloat = openRadii.top + 4
 
     static let closedRadii = (top: CGFloat(6), bottom: CGFloat(14))
     static let openRadii = (top: CGFloat(19), bottom: CGFloat(24))

@@ -203,7 +203,7 @@ struct OpenLayout: View {
                             onInstallHooks: { coordinator.installHooks() },
                             onSelect: { coordinator.select($0) })
         }
-        .padding(.horizontal, NotchMetrics.openInset)
+        .padding(.horizontal, NotchMetrics.openSideInset)
         .padding(.bottom, NotchMetrics.openInset)
         .frame(width: NotchMetrics.openWidth)
     }
