@@ -3,7 +3,7 @@
 Turns the MacBook notch into a status light for Claude Code, and the ambient
 light sensor behind it into a button.
 
-Run the app and one dot per running Claude Code session appears beside the
+Run the app and one dot per running Claude Code session appears in a black island around the
 notch: yellow while Claude works, red when it is waiting on you, green when it
 is done. Hover to see the list; click a dot to jump to that terminal. Cup your
 hand over the notch and the session that needs you comes to the front. The

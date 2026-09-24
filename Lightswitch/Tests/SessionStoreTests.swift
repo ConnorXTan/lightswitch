@@ -80,12 +80,12 @@ final class SessionStoreTests: XCTestCase {
 
         try remove("b")
         store.reload()
-        XCTAssertEqual(store.slotted.map { $0?.id }, ["a", nil, "c", nil])
+        XCTAssertEqual(store.slotted.map { $0?.id }, ["a", nil, "c", nil, nil, nil])
 
         try write("d", state: "idle")
         store.reload()
         XCTAssertEqual(store.slot(of: "d"), 2, "the freed middle slot is reused")
-        XCTAssertEqual(store.slotted.map { $0?.id }, ["a", "d", "c", nil])
+        XCTAssertEqual(store.slotted.map { $0?.id }, ["a", "d", "c", nil, nil, nil])
     }
 
     func testBatchArrivalsAreOrderedByLastUpdate() throws {
@@ -98,18 +98,18 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(store.slot(of: "zz"), 3)
     }
 
-    func testFifthSessionOverflows() throws {
-        for id in ["a", "b", "c", "d", "e"] {
+    func testSeventhSessionOverflows() throws {
+        for id in ["a", "b", "c", "d", "e", "f", "g"] {
             try write(id, state: "working")
             store.reload()
         }
-        XCTAssertNil(store.slot(of: "e"))
-        XCTAssertEqual(store.overflow.map(\.id), ["e"])
-        XCTAssertEqual(store.sessions.map(\.id), ["a", "b", "c", "d", "e"])
+        XCTAssertNil(store.slot(of: "g"))
+        XCTAssertEqual(store.overflow.map(\.id), ["g"])
+        XCTAssertEqual(store.sessions.map(\.id), ["a", "b", "c", "d", "e", "f", "g"])
 
         try remove("a")
         store.reload()
-        XCTAssertEqual(store.slot(of: "e"), 1, "overflow takes the first freed slot")
+        XCTAssertEqual(store.slot(of: "g"), 1, "overflow takes the first freed slot")
         XCTAssertTrue(store.overflow.isEmpty)
     }
 

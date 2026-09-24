@@ -8,7 +8,7 @@ import Foundation
 /// exactly four entries for the closed notch, `overflow` is what did not fit.
 @MainActor
 public final class SessionStore: ObservableObject {
-    public static let slotCount = 4
+    public static let slotCount = 6
 
     /// `~/.claude-notch/sessions`, or `LIGHTSWITCH_SESSIONS_DIR` when set (for
     /// demos and for driving the app with hand-written files).
