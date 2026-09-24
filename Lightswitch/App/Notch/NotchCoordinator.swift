@@ -1,3 +1,5 @@
+import AppKit
+import Combine
 import SwiftUI
 import LightswitchKit
 
@@ -20,6 +22,7 @@ final class NotchCoordinator: ObservableObject {
     @Published var hooksInstalled = true
     private var peekTask: Task<Void, Never>?
     private var viewModels: [String: NotchViewModel] = [:]
+    private var cancellables: Set<AnyCancellable> = []
 
     /// Wired by the app: focus the terminal that owns a session.
     var selectSession: (Session) -> Void = { _ in }
@@ -34,6 +37,29 @@ final class NotchCoordinator: ObservableObject {
     }
 
     func installHooks() { installHooksAction() }
+
+    // MARK: Alerts
+
+    /// Reacts to sessions turning red: a peek beside the notch (unless a
+    /// notch is already open and showing the list) and, if enabled, a sound.
+    func bind(to store: SessionStore) {
+        store.$alert
+            .compactMap { $0 }
+            .removeDuplicates()
+            .sink { [weak self] alert in self?.announce(alert) }
+            .store(in: &cancellables)
+    }
+
+    private func announce(_ alert: SessionStore.Alert) {
+        if Preferences.alertSound {
+            NSSound(named: "Glass")?.play()
+        }
+        guard !anyOpen else { return }
+        showPeek(Peek(title: alert.session.folderName,
+                      detail: alert.session.state.label,
+                      tint: alert.session.state.color),
+                 for: .seconds(3))
+    }
 
     // MARK: Windows
 

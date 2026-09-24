@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Preferences.register()
         NSApp.setActivationPolicy(.accessory)
         store.start()
+        coordinator.bind(to: store)
 
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
