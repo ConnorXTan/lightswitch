@@ -87,8 +87,9 @@ struct ProjectHeader: View {
     }
 }
 
-/// One Claude terminal inside a project, with the subfolder or worktree
-/// it sits in when that is not the project root.
+/// One Claude terminal inside a project: the session's name (or, before it
+/// has one, which terminal it is in), with the subfolder or worktree it
+/// sits in when that is not the project root.
 struct SessionRow: View {
     static let height: CGFloat = 28
 
@@ -103,12 +104,13 @@ struct SessionRow: View {
     var body: some View {
         HStack(spacing: 10) {
             SessionDot(session: session, acknowledged: acknowledged)
-            Text(session.terminalLabel)
+            Text(session.displayName)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white.opacity(0.85))
                 .lineLimit(1)
-                .truncationMode(.middle)
+                .truncationMode(session.title.isEmpty ? .middle : .tail)
                 .layoutPriority(1)
+                .help(session.terminalLabel)
             if !subpath.isEmpty {
                 Text(subpath)
                     .font(.system(size: 11))

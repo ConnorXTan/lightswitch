@@ -56,7 +56,8 @@ public enum HookScript {
 #   usage: notch.sh <state>    state = idle|working|needs_you|done|idle_done|gone
 #
 # Claude Code runs this with the hook's JSON payload on stdin. It writes one
-# small file per session to ~/.claude-notch/sessions/<session_id>.json, which
+# small file per session to ~/.claude-notch/sessions/<session_id>.json (state,
+# where it runs, and the session's name read from its transcript), which
 # the Lightswitch app watches; `gone` deletes it. Nothing is ever printed to
 # stdout (Claude Code parses hook stdout as JSON) and the exit status is
 # always 0, so a broken script can never block a session.
@@ -87,13 +88,18 @@ if [ -z "$NOTCH_NO_JQ" ]; then
     done
 fi
 
-# field <key>: a top-level scalar from the payload, or empty.
-field() {
+# jsonfield <key> <json>: a top-level scalar from a JSON text, or empty.
+jsonfield() {
     if [ -n "$jq_bin" ]; then
-        printf '%s' "$input" | "$jq_bin" -r --arg k "$1" '.[$k] | select(. != null)' 2>/dev/null
+        printf '%s' "$2" | "$jq_bin" -r --arg k "$1" '.[$k] | select(. != null)' 2>/dev/null
     else
-        printf '%s' "$input" | plutil -extract "$1" raw -o - - 2>/dev/null
+        printf '%s' "$2" | plutil -extract "$1" raw -o - - 2>/dev/null
     fi
+}
+
+# field <key>: the same, from the hook payload.
+field() {
+    jsonfield "$1" "$input"
 }
 
 # filefield <key> <file>: the same, from an existing session file.
@@ -128,12 +134,33 @@ if [ "$state" = "idle_done" ]; then
     idle=true
 fi
 
+# --- the session's name ------------------------------------------------------
+# Claude Code keeps a session's name in its transcript, not in the payload:
+# a `custom-title` line from /rename (the last one wins; an empty one means
+# the name was cleared), else the `ai-title` it generates from the
+# conversation. Both are one-line JSON records, so the last match is the
+# current one.
+
+title=""
+transcript=$(field transcript_path)
+if [ -n "$transcript" ] && [ -r "$transcript" ]; then
+    line=$(grep -a '"type":"custom-title"' "$transcript" 2>/dev/null | tail -n 1)
+    [ -n "$line" ] && title=$(jsonfield customTitle "$line")
+    if [ -z "$title" ]; then
+        line=$(grep -a '"type":"ai-title"' "$transcript" 2>/dev/null | tail -n 1)
+        [ -n "$line" ] && title=$(jsonfield aiTitle "$line")
+    fi
+    title=$(printf '%s' "$title" | tr -d '\000-\037')
+fi
+
 # Skip the write when nothing changed. idle_done always writes (it refreshes
 # the timestamp the app pulses on); a plain done after it clears the flag.
+# A new name is a change: the title arrives a moment after the first prompt.
 if [ "$idle" = false ] && [ -f "$f" ]; then
     cur_state=$(filefield state "$f")
     cur_idle=$(filefield idle "$f")
-    [ "$cur_state" = "$state" ] && [ "$cur_idle" = "false" ] && exit 0
+    cur_title=$(filefield title "$f")
+    [ "$cur_state" = "$state" ] && [ "$cur_idle" = "false" ] && [ "$cur_title" = "$title" ] && exit 0
 fi
 
 # --- which process is the session --------------------------------------------
@@ -168,13 +195,13 @@ ts=$(date +%s)
 if [ -n "$jq_bin" ]; then
     "$jq_bin" -n --arg sid "$sid" --arg state "$state" --arg cwd "$cwd" \
         --argjson pid "$pid" --arg tty "$tty" --arg term "$term" \
-        --argjson idle "$idle" --argjson ts "$ts" \
-        '{session_id:$sid,state:$state,cwd:$cwd,pid:$pid,tty:$tty,term_program:$term,idle:$idle,updated_at:$ts}' \
+        --argjson idle "$idle" --argjson ts "$ts" --arg title "$title" \
+        '{session_id:$sid,state:$state,cwd:$cwd,pid:$pid,tty:$tty,term_program:$term,idle:$idle,updated_at:$ts,title:$title}' \
         > "$f.tmp" 2>/dev/null
 else
     esc() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
-    printf '{"session_id":"%s","state":"%s","cwd":"%s","pid":%s,"tty":"%s","term_program":"%s","idle":%s,"updated_at":%s}\n' \
-        "$(esc "$sid")" "$state" "$(esc "$cwd")" "$pid" "$(esc "$tty")" "$(esc "$term")" "$idle" "$ts" \
+    printf '{"session_id":"%s","state":"%s","cwd":"%s","pid":%s,"tty":"%s","term_program":"%s","idle":%s,"updated_at":%s,"title":"%s"}\n' \
+        "$(esc "$sid")" "$state" "$(esc "$cwd")" "$pid" "$(esc "$tty")" "$(esc "$term")" "$idle" "$ts" "$(esc "$title")" \
         > "$f.tmp" 2>/dev/null
 fi
 

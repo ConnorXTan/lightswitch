@@ -65,6 +65,12 @@ public extension Session {
         return "\(app) · \(where_)"
     }
 
+    /// What the list calls this session: its name from Claude Code when it
+    /// has one, else which terminal it lives in.
+    var displayName: String {
+        title.isEmpty ? terminalLabel : title
+    }
+
     /// The repository this session works in, by folder name; the working
     /// directory's own name when it is not in one. What the peek announces.
     var projectName: String {

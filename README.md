@@ -43,8 +43,11 @@ without it (`kill -9`, a closed terminal window) are pruned when their process
 is gone.
 
 Hover the notch and it opens into a list grouped by repository: the repo as a
-header, and under it each Claude terminal ("VS Code · ttys004") with the
-subfolder or worktree it sits in, its state and how long ago it changed. A
+header, and under it each Claude session by the name Claude Code gave it (the
+title it generates from the conversation, or yours from `/rename`; until it
+has one, the terminal: "VS Code · ttys004") with the subfolder or worktree it
+sits in, its state and how long ago it changed. The hook reads the name from
+the session's transcript, which Claude Code hands it as `transcript_path`. A
 session in a linked worktree (Claude Code's `.claude/worktrees/<name>`, or one
 kept elsewhere) lists under the repository it belongs to. Two projects with
 the same folder name show where they live.

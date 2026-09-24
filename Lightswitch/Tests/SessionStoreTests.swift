@@ -19,9 +19,10 @@ final class SessionStoreTests: XCTestCase {
     }
 
     private func write(_ id: String, state: String, cwd: String = "/tmp/x", pid: Int = 1,
-                       idle: Bool = false, updatedAt: Int = 1_758_700_000) throws {
+                       idle: Bool = false, updatedAt: Int = 1_758_700_000, title: String? = nil) throws {
+        let titleField = title.map { ",\"title\":\"\($0)\"" } ?? ""
         let json = """
-        {"session_id":"\(id)","state":"\(state)","cwd":"\(cwd)","pid":\(pid),"tty":"ttys004","term_program":"vscode","idle":\(idle),"updated_at":\(updatedAt)}
+        {"session_id":"\(id)","state":"\(state)","cwd":"\(cwd)","pid":\(pid),"tty":"ttys004","term_program":"vscode","idle":\(idle),"updated_at":\(updatedAt)\(titleField)}
         """
         try json.write(to: dir.appendingPathComponent("\(id).json"), atomically: true, encoding: .utf8)
     }
@@ -55,10 +56,22 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(store.sessions.first?.state, .idle)
     }
 
+    func testTitleIsOptionalAndNamesTheRow() throws {
+        try write("old", state: "working")
+        try write("named", state: "done", title: "Fix the notch margins")
+        store.reload()
+        let old = try XCTUnwrap(store.sessions.first { $0.id == "old" })
+        let named = try XCTUnwrap(store.sessions.first { $0.id == "named" })
+        XCTAssertEqual(old.title, "", "a file from an older script has no title")
+        XCTAssertEqual(old.displayName, "VS Code · ttys004")
+        XCTAssertEqual(named.title, "Fix the notch margins")
+        XCTAssertEqual(named.displayName, "Fix the notch margins")
+    }
+
     func testSessionRoundTripsThroughCodable() throws {
         let s = Session(id: "abcd1234", state: .done, cwd: "/tmp/p", pid: 7, tty: "ttys001",
                         termProgram: "iTerm.app", idle: true,
-                        updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+                        updatedAt: Date(timeIntervalSince1970: 1_700_000_000), title: "Ship it")
         let data = try JSONEncoder().encode(s)
         let back = try JSONDecoder().decode(Session.self, from: data)
         XCTAssertEqual(back, s)

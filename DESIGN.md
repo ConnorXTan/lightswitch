@@ -375,7 +375,9 @@ directory's git root, a linked worktree resolved to its main worktree; the
 directory itself outside git). `ProjectHeader`
 (26 pt: folder name 13/600 white, location 11/400 white-40 only when two
 projects share a name, "N terminals" 11/400 white-40 tabular on the right)
-sits above `SessionRow`s (28 pt, indented 22 pt: dot, "App · tty" 12/500
-white-85, then the subfolder or worktree name 11/400 white-40 when the
-session is not at the root, state word, age). Groups are separated by 6 pt; the list scrolls
+sits above `SessionRow`s (28 pt, indented 22 pt: dot, the session's name
+12/500 white-85 tail-truncated (Claude Code's generated title or a
+`/rename`; before it has one, "App · tty" middle-truncated, and the
+terminal is always the row's tooltip), then the subfolder or worktree name
+11/400 white-40 when the session is not at the root, state word, age). Groups are separated by 6 pt; the list scrolls
 past nine rows at a 262 pt cap. The window canvas is 640×360.

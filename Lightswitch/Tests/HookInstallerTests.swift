@@ -270,6 +270,54 @@ final class HookInstallerTests: XCTestCase {
         try XCTUnwrap(FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date)
     }
 
+    func testScriptReadsTheSessionNameFromTheTranscriptWithJq() throws {
+        try XCTSkipIf(HookInstaller.jqPath() == nil, "jq is not installed on this machine")
+        try sessionName(noJQ: false)
+    }
+
+    func testScriptReadsTheSessionNameFromTheTranscriptWithoutJq() throws {
+        try sessionName(noJQ: true)
+    }
+
+    /// The name lives in the transcript Claude Code points the hook at: the
+    /// last `custom-title` (from /rename) wins, an empty one clears it, and
+    /// the generated `ai-title` is the fallback. A new name must defeat the
+    /// unchanged-state skip.
+    private func sessionName(noJQ: Bool) throws {
+        let home = self.home.appendingPathComponent(noJQ ? "name-plutil" : "name-jq", isDirectory: true)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        let transcript = home.appendingPathComponent("t1.jsonl")
+        func append(_ line: String) throws {
+            let handle = try FileHandle(forWritingTo: transcript)
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data((line + "\n").utf8))
+            try handle.close()
+        }
+        try #"""
+        {"type":"user","message":{"role":"user","content":"hello"},"uuid":"u1","sessionId":"t1"}
+        {"type":"ai-title","aiTitle":"Fix the notch \"margins\"","sessionId":"t1"}
+
+        """#.write(to: transcript, atomically: true, encoding: .utf8)
+        let payload = #"{"session_id":"t1","cwd":"/tmp/proj","transcript_path":"\#(transcript.path)"}"#
+
+        try runScript("working", payload: payload, home: home, noJQ: noJQ)
+        XCTAssertEqual(try readSession("t1", home: home)["title"] as? String, "Fix the notch \"margins\"")
+
+        try append(#"{"type":"custom-title","customTitle":"Notch polish","sessionId":"t1"}"#)
+        try runScript("working", payload: payload, home: home, noJQ: noJQ)
+        XCTAssertEqual(try readSession("t1", home: home)["title"] as? String, "Notch polish",
+                       "a rename rewrites the file even though the state did not change")
+
+        try append(#"{"type":"custom-title","customTitle":"","sessionId":"t1"}"#)
+        try runScript("working", payload: payload, home: home, noJQ: noJQ)
+        XCTAssertEqual(try readSession("t1", home: home)["title"] as? String, "Fix the notch \"margins\"",
+                       "clearing the custom title falls back to the generated one")
+
+        let missing = #"{"session_id":"t2","cwd":"/tmp/proj","transcript_path":"/nonexistent/t2.jsonl"}"#
+        try runScript("working", payload: missing, home: home, noJQ: noJQ)
+        XCTAssertEqual(try readSession("t2", home: home)["title"] as? String, "", "an unreadable transcript is not an error")
+    }
+
     func testScriptLifecycleWithJq() throws {
         try XCTSkipIf(HookInstaller.jqPath() == nil, "jq is not installed on this machine")
         try lifecycle(noJQ: false)
@@ -295,6 +343,7 @@ final class HookInstallerTests: XCTestCase {
         XCTAssertEqual(session["cwd"] as? String, "/tmp/proj")
         XCTAssertEqual(session["term_program"] as? String, "TestTerm")
         XCTAssertEqual(session["idle"] as? Bool, false)
+        XCTAssertEqual(session["title"] as? String, "", "no transcript_path: no name, but the key is there")
         XCTAssertNotNil(session["tty"] as? String)
         // The script walks up from its parent looking for a process named
         // claude. Under a plain test runner that is this process; when the
