@@ -119,9 +119,12 @@ struct SessionRow: View {
                     .truncationMode(.head)
             }
             Spacer(minLength: 8)
+            // The state word and age never give way: a long name truncates.
             Text(session.state.label)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(session.state == .idle ? .white.opacity(0.45) : session.state.color)
+                .fixedSize()
+                .layoutPriority(2)
             Text(session.age(at: now))
                 .font(.system(size: 12))
                 .monospacedDigit()
