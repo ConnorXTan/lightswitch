@@ -1,37 +1,39 @@
 import SwiftUI
 import LightswitchKit
 
-/// One wing of the island: the dots for its slots, nearest the notch first,
-/// plus a "+N" on the right wing when more sessions exist than slots. Empty
-/// slots keep their space so positions never shift.
-struct DotsRow: View {
+/// The dots in the closed wing: one per slot in a two-row grid, columns
+/// filled top to bottom, plus a "+N" when more sessions exist than slots.
+/// Empty slots keep their space so positions never shift.
+struct DotsGrid: View {
     @EnvironmentObject private var store: SessionStore
-    let side: IslandLayout.Side
 
     var body: some View {
-        let slots = IslandLayout.slots(store.slotted, side: side)
-        // Screen order: the right wing reads outward from the notch, the
-        // left wing is mirrored so its first slot is beside the notch too.
-        let indices = side == .right ? Array(slots.indices) : Array(slots.indices.reversed())
-        HStack(spacing: IslandLayout.gap) {
-            ForEach(indices, id: \.self) { index in
-                SessionDot(session: slots[index],
-                           acknowledged: slots[index].map { store.isAcknowledged($0.id) } ?? true)
-                    .contentShape(Rectangle().inset(by: -5))
-                    .onTapGesture {
-                        if let session = slots[index] { NotchCoordinator.shared.select(session) }
+        let columns = WingLayout.columns(store.slotted)
+        HStack(spacing: WingLayout.gap) {
+            ForEach(columns.indices, id: \.self) { c in
+                VStack(spacing: WingLayout.gap) {
+                    ForEach(columns[c].indices, id: \.self) { r in
+                        let session = columns[c][r]
+                        SessionDot(session: session,
+                                   acknowledged: session.map { store.isAcknowledged($0.id) } ?? true,
+                                   size: WingLayout.dot)
+                            .contentShape(Rectangle().inset(by: -2.5))
+                            .onTapGesture {
+                                if let session { NotchCoordinator.shared.select(session) }
+                            }
                     }
+                }
             }
-            if side == .right, !store.overflow.isEmpty {
+            if !store.overflow.isEmpty {
                 Text("+\(store.overflow.count)")
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.white.opacity(0.6))
-                    .frame(width: IslandLayout.overflowWidth, alignment: .leading)
+                    .frame(width: WingLayout.overflowWidth, alignment: .leading)
                     .accessibilityLabel("\(store.overflow.count) more sessions")
             }
         }
-        .animation(.smooth(duration: 0.25), value: slots.count)
+        .animation(.smooth(duration: 0.25), value: columns.count)
     }
 }
 
@@ -41,7 +43,7 @@ struct DotsRow: View {
 struct SessionDot: View {
     let session: Session?
     let acknowledged: Bool
-    var size: CGFloat = IslandLayout.dot
+    var size: CGFloat = 8
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase = false
