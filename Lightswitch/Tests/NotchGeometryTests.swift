@@ -37,5 +37,18 @@ final class NotchGeometryTests: XCTestCase {
         Preferences.register(in: suite)
         XCTAssertTrue(suite.bool(forKey: Preferences.showOnAllDisplaysKey))
         XCTAssertTrue(suite.bool(forKey: Preferences.alertSoundKey))
+        XCTAssertEqual(suite.string(forKey: Preferences.gestureActionKey), "smart")
+    }
+
+    func testGestureActionsRoundTripAndDescribeThemselves() {
+        for action in GestureAction.allCases {
+            XCTAssertEqual(GestureAction(rawValue: action.rawValue), action)
+            XCTAssertFalse(action.label.isEmpty)
+        }
+        XCTAssertEqual(GestureAction.playPause.actionSpec, "media:playpause")
+        XCTAssertEqual(GestureAction.closeWindow.actionSpec, "key:cmd+w")
+        XCTAssertNil(GestureAction.smart.actionSpec)
+        XCTAssertTrue(GestureAction.closeWindow.needsAccessibility)
+        XCTAssertFalse(GestureAction.toggleNotch.needsAccessibility)
     }
 }

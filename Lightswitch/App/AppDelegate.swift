@@ -19,6 +19,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.start()
         coordinator.bind(to: store)
         HooksModel.shared.refresh()
+        coordinator.selectSession = { session in
+            let result = TerminalFocuser.focus(termProgram: session.termProgram,
+                                               tty: session.tty, cwd: session.cwd)
+            Log.note(Log.sessions, "focus \(session.folderName) (\(session.termProgram)) → \(result)")
+        }
+        SensorController.shared.apply()
 
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,

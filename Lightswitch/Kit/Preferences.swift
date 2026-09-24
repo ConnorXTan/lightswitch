@@ -16,6 +16,7 @@ public enum Preferences {
             openOnHoverKey: true,
             alertSoundKey: true,
             sensorEnabledKey: true,
+            gestureActionKey: GestureAction.smart.rawValue,
         ]
     }
 
@@ -29,4 +30,7 @@ public enum Preferences {
     public static var openOnHover: Bool { UserDefaults.standard.bool(forKey: openOnHoverKey) }
     public static var alertSound: Bool { UserDefaults.standard.bool(forKey: alertSoundKey) }
     public static var sensorEnabled: Bool { UserDefaults.standard.bool(forKey: sensorEnabledKey) }
+    public static var gestureAction: GestureAction {
+        GestureAction(rawValue: UserDefaults.standard.string(forKey: gestureActionKey) ?? "") ?? .smart
+    }
 }
