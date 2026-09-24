@@ -10,17 +10,16 @@ struct ContentView: View {
     @AppStorage(Preferences.openOnHoverKey) private var openOnHover = true
 
     @State private var hovering = false
-    @State private var hoverTask: Task<Void, Never>?
+    @State private var openTask: Task<Void, Never>?
+    @State private var closeTask: Task<Void, Never>?
+    @State private var watchdog: Task<Void, Never>?
     /// The visible shape's size and window, to check the real pointer
-    /// position: when the fading closed layout is removed during the open, a
-    /// stray mouse-out fires under a pointer that has not moved, and with a
-    /// still pointer no mouse-in follows. A close must not slip in there.
+    /// position. Hover events are only a prompt: whenever the view tree
+    /// changes under a still pointer SwiftUI fires a stray mouse-out, and no
+    /// mouse-in follows until something else changes. So opening and closing
+    /// are decided by where the pointer actually is.
     @State private var shapeSize: CGSize = .zero
     @State private var window: NSWindow?
-    /// Where the pointer was at the last mouse-in. A mouse-out that arrives
-    /// with the pointer still exactly there did not come from the pointer
-    /// leaving; it came from the view tree changing under it.
-    @State private var lastHoverIn: CGPoint = .zero
 
     /// The wing the closed shape grows to the right of the physical notch to
     /// hold the dots (the notch itself has no pixels). The closed shape is
@@ -62,7 +61,11 @@ struct ContentView: View {
                alignment: .top)
         .background(WindowReader { window = $0 })
         .onChange(of: vm.state) { _, newState in
-            if newState == .closed { hovering = false }
+            if newState == .closed {
+                hovering = false
+                watchdog?.cancel()
+                watchdog = nil
+            }
         }
     }
 
@@ -121,31 +124,52 @@ struct ContentView: View {
 
     private func handleHover(_ isHovering: Bool) {
         Log.note(Log.app, "hover \(isHovering ? "in" : "out") open=\(vm.isOpen)")
-        hoverTask?.cancel()
         hovering = isHovering
 
         if isHovering {
-            lastHoverIn = NSEvent.mouseLocation
-            guard openOnHover, !vm.isOpen else { return }
-            hoverTask = Task { @MainActor in
+            closeTask?.cancel()
+            closeTask = nil
+            guard openOnHover, !vm.isOpen, openTask == nil else { return }
+            openTask = Task { @MainActor in
                 try? await Task.sleep(for: NotchMetrics.hoverOpenDelay)
-                guard !Task.isCancelled, hovering, !vm.isOpen else { return }
+                openTask = nil
+                guard !Task.isCancelled, !vm.isOpen, pointerInsideShape() else { return }
                 vm.open()
+                startWatchdog()
             }
         } else {
-            guard vm.isOpen else { return }
-            hoverTask = Task { @MainActor in
+            // While closed a mouse-out is not trusted: the pending open looks
+            // at the pointer itself when its delay is up.
+            guard vm.isOpen, closeTask == nil else { return }
+            closeTask = Task { @MainActor in
                 try? await Task.sleep(for: NotchMetrics.hoverCloseDelay)
-                guard !Task.isCancelled, !hovering, vm.isOpen else { return }
-                let mouse = NSEvent.mouseLocation
-                let unmoved = mouse == lastHoverIn
-                let inside = pointerInsideShape()
-                if unmoved || inside {
-                    Log.note(Log.app, "hover out ignored: \(unmoved ? "pointer has not moved" : "pointer still over the shape")")
+                closeTask = nil
+                guard !Task.isCancelled, vm.isOpen else { return }
+                if pointerInsideShape() {
+                    Log.note(Log.app, "hover out ignored: pointer still over the shape")
                     hovering = true
                     return
                 }
                 vm.close()
+            }
+        }
+    }
+
+    /// Hover opened the panel, so hover must be able to close it even when
+    /// the mouse-out never arrives: while it is open, look at the pointer
+    /// now and then. A panel opened by a click or the gesture is not polled;
+    /// it stays until the pointer visits and leaves, as before.
+    private func startWatchdog() {
+        watchdog?.cancel()
+        watchdog = Task { @MainActor in
+            while !Task.isCancelled, vm.isOpen {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled, vm.isOpen else { break }
+                if !pointerInsideShape() {
+                    Log.note(Log.app, "watchdog: pointer is off the panel, closing")
+                    vm.close()
+                    break
+                }
             }
         }
     }
