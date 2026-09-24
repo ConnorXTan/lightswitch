@@ -25,7 +25,7 @@ to the notch layout, the hook script, or a Claude Code update.
 | 4 | `idle_prompt` (`done` with `idle: true`) | Green dot breathes slowly, no sound | 2026-09-24 | snapshot |
 | 5 | Replay fixtures through the sensor engine in switch mode | `hold`/`tap` → cover, uncover; `idle`/`walk_past`/`drift` → nothing; `dark` → fault | 2026-09-24 | unit (`SensorEngineTests`) |
 | 5 | Cup a hand over the notch in a lit room | Fires once per cover, re-arms on uncover; refuses under 25 lux with a message in Settings | pending | manual (the display was asleep: both the app and the C CLI reported "no ambient light sensor found"; the app retries every 30 s and on wake) |
-| 6 | Click a red dot / row with VS Code, iTerm, Terminal sessions | The right tab comes forward (iTerm, Terminal); the folder's window comes forward (VS Code) | pending | manual (needs the Automation permission prompt) |
+| 6 | Click a red dot / row with VS Code, iTerm, Terminal sessions | The right tab comes forward (iTerm, Terminal); the window whose terminal runs the session comes forward (VS Code), even for a session that moved into a worktree, and no new window opens | pending | manual (needs the Automation permission prompt for iTerm/Terminal); the folder choice is unit-tested (`TerminalWindowTests`: the terminal shell's directory and VS Code's own list of open windows, from its `storage.json`) |
 | 6 | Menu bar: Launch at Login | Registered as a login item from the bundled app | pending | manual |
 
 ## Manual soak
