@@ -15,7 +15,7 @@ enum NotchMetrics {
 
     /// Horizontal inset of content inside the closed shape.
     static let closedInset: CGFloat = 10
-    static let openInset: CGFloat = 14
+    static let openInset: CGFloat = 10
 
     static let closedRadii = (top: CGFloat(6), bottom: CGFloat(14))
     static let openRadii = (top: CGFloat(19), bottom: CGFloat(24))
