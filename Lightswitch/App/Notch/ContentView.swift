@@ -11,6 +11,11 @@ struct ContentView: View {
 
     @State private var hovering = false
     @State private var hoverTask: Task<Void, Never>?
+    /// The visible shape's size and window, to check the real pointer
+    /// position: opening rebuilds the hover region, which fires a mouse-out
+    /// and a mouse-in a moment apart, and a close must not slip in between.
+    @State private var shapeSize: CGSize = .zero
+    @State private var window: NSWindow?
 
     /// The wing the closed shape grows to the right of the physical notch to
     /// hold the dots (the notch itself has no pixels). The closed shape is
@@ -42,14 +47,30 @@ struct ContentView: View {
             layout
                 .contentShape(Rectangle().offset(x: closedOffset))
                 .onHover(perform: handleHover)
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: ShapeSizeKey.self, value: proxy.size)
+                })
+                .onPreferenceChange(ShapeSizeKey.self) { shapeSize = $0 }
             Spacer(minLength: 0)
         }
         .frame(width: NotchMetrics.windowSize.width,
                height: NotchMetrics.windowSize.height,
                alignment: .top)
+        .background(WindowReader { window = $0 })
         .onChange(of: vm.state) { _, newState in
             if newState == .closed { hovering = false }
         }
+    }
+
+    /// Whether the pointer is over the visible shape right now, from its
+    /// real position rather than the last hover event.
+    private func pointerInsideShape() -> Bool {
+        guard let window, shapeSize != .zero else { return false }
+        let frame = window.frame
+        let x = frame.minX + (frame.width - shapeSize.width) / 2 + closedOffset
+        let rect = CGRect(x: x, y: frame.maxY - shapeSize.height,
+                          width: shapeSize.width, height: shapeSize.height)
+        return rect.insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation)
     }
 
     @ViewBuilder
@@ -85,6 +106,7 @@ struct ContentView: View {
     // MARK: Hover
 
     private func handleHover(_ isHovering: Bool) {
+        Log.note(Log.app, "hover \(isHovering ? "in" : "out") open=\(vm.isOpen) t=\(Date().timeIntervalSince1970)")
         hoverTask?.cancel()
         hovering = isHovering
 
@@ -100,10 +122,20 @@ struct ContentView: View {
             hoverTask = Task { @MainActor in
                 try? await Task.sleep(for: NotchMetrics.hoverCloseDelay)
                 guard !Task.isCancelled, !hovering, vm.isOpen else { return }
+                if pointerInsideShape() {
+                    Log.note(Log.app, "hover out ignored: pointer still over the shape")
+                    hovering = true
+                    return
+                }
                 vm.close()
             }
         }
     }
+}
+
+private struct ShapeSizeKey: PreferenceKey {
+    static var defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
 }
 
 // MARK: - Closed
