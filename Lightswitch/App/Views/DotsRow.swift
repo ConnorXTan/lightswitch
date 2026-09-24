@@ -105,7 +105,7 @@ struct SessionDot: View {
                                 .frame(width: size + 6, height: size + 6)
                         }
                     }
-                    .accessibilityLabel("\(session.folderName) \(session.state.announcement)")
+                    .accessibilityLabel("\(session.projectName) \(session.state.announcement)")
             }
         }
         .frame(width: size, height: size)

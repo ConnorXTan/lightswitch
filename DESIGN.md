@@ -370,9 +370,12 @@ rectangles; the install button and the ratio bar are capsules.
 
 ## Addendum (2026-09-24, projects branch)
 
-The open panel lists sessions grouped by working directory. `ProjectHeader`
+The open panel lists sessions grouped by repository (the working
+directory's git root, a linked worktree resolved to its main worktree; the
+directory itself outside git). `ProjectHeader`
 (26 pt: folder name 13/600 white, location 11/400 white-40 only when two
 projects share a name, "N terminals" 11/400 white-40 tabular on the right)
 sits above `SessionRow`s (28 pt, indented 22 pt: dot, "App · tty" 12/500
-white-85, state word, age). Groups are separated by 6 pt; the list scrolls
+white-85, then the subfolder or worktree name 11/400 white-40 when the
+session is not at the root, state word, age). Groups are separated by 6 pt; the list scrolls
 past nine rows at a 262 pt cap. The window canvas is 640×360.
