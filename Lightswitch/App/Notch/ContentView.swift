@@ -27,12 +27,15 @@ struct ContentView: View {
         vm.state == .closed && coordinator.peek == nil ? closedWing / 2 : 0
     }
 
-    /// Each layout draws its own black surface, so the closed shape never
-    /// morphs into the panel: the panel pops in over it, already centred on
-    /// the notch, and nothing has to slide into place afterwards. Hover is
-    /// tracked on this container, which outlives the layouts, so swapping
-    /// them cannot fire a stray mouse-out. The state changes themselves are
-    /// animated where they are made (`NotchViewModel`, `showPeek`).
+    /// Each layout draws its own black surface. The panel and the peek grow
+    /// out of the notch through `Reveal`: an animated clip from the notch's
+    /// centred silhouette to their full outline, so nothing slides and
+    /// nothing fades. The closed shape waits underneath (lower z) until the
+    /// growing panel has covered it, and is back in place before the panel
+    /// shrinks past it. Hover is tracked on this container, which outlives
+    /// the layouts, so swapping them cannot fire a stray mouse-out. The state
+    /// changes themselves are animated where they are made (`NotchViewModel`,
+    /// `showPeek`).
     var body: some View {
         VStack(spacing: 0) {
             layout
@@ -53,19 +56,26 @@ struct ContentView: View {
         switch vm.state {
         case .open:
             OpenLayout()
-                .surface(radii: NotchMetrics.openRadii, lift: 0.5)
-                .transition(.scale(scale: 0.9, anchor: .top).combined(with: .opacity))
+                .surface(radii: NotchMetrics.openRadii)
+                .transition(Reveal.transition(closed: vm.closedSize, lift: 0.5))
+                .zIndex(1)
         case .closed:
             if let peek = coordinator.peek {
                 PeekLayout(peek: peek)
-                    .surface(radii: NotchMetrics.closedRadii, lift: hovering ? 0.5 : 0)
-                    .transition(.opacity)
+                    .surface(radii: NotchMetrics.closedRadii)
+                    .transition(Reveal.transition(closed: vm.closedSize, lift: 0))
+                    .zIndex(1)
             } else {
                 ClosedLayout()
-                    .surface(radii: NotchMetrics.closedRadii, lift: hovering ? 0.5 : 0)
+                    .surface(radii: NotchMetrics.closedRadii)
+                    .shadow(color: .black.opacity(hovering ? 0.5 : 0), radius: 14, x: 0, y: 8)
                     .offset(x: closedWing / 2)
                     .animation(.smooth(duration: 0.3), value: closedWing)
-                    .transition(.opacity)
+                    // Appears at once when closing (it is under the panel);
+                    // when opening it stays until the panel has grown over it.
+                    .transition(.asymmetric(insertion: .identity,
+                                            removal: .opacity.animation(.linear(duration: 0.01).delay(0.25))))
+                    .zIndex(0)
             }
         }
     }
@@ -230,10 +240,9 @@ struct OpenLayout: View {
 // MARK: - Surface
 
 private extension View {
-    /// The black notch surface: background, silhouette and lift.
-    func surface(radii: (top: CGFloat, bottom: CGFloat), lift: Double) -> some View {
+    /// The black notch surface: background and silhouette.
+    func surface(radii: (top: CGFloat, bottom: CGFloat)) -> some View {
         background(Color.black)
             .clipShape(NotchShape(topRadius: radii.top, bottomRadius: radii.bottom))
-            .shadow(color: .black.opacity(lift), radius: 14, x: 0, y: 8)
     }
 }
