@@ -31,15 +31,13 @@ struct ContentView: View {
     /// morphs into the panel: the panel pops in over it, already centred on
     /// the notch, and nothing has to slide into place afterwards. Hover is
     /// tracked on this container, which outlives the layouts, so swapping
-    /// them cannot fire a stray mouse-out.
+    /// them cannot fire a stray mouse-out. The state changes themselves are
+    /// animated where they are made (`NotchViewModel`, `showPeek`).
     var body: some View {
         VStack(spacing: 0) {
             layout
                 .contentShape(Rectangle().offset(x: closedOffset))
                 .onHover(perform: handleHover)
-                .animation(vm.isOpen ? NotchMetrics.openAnimation : NotchMetrics.closeAnimation,
-                           value: vm.state)
-                .animation(NotchMetrics.peekAnimation, value: coordinator.peek)
             Spacer(minLength: 0)
         }
         .frame(width: NotchMetrics.windowSize.width,

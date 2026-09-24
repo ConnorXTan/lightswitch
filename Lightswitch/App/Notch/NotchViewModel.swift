@@ -25,8 +25,19 @@ final class NotchViewModel: ObservableObject {
 
     var isOpen: Bool { state == .open }
 
-    func open() { state = .open }
-    func close() { state = .closed }
+    /// Open and close happen inside an animation transaction: the layouts
+    /// swap with transitions, and only a transaction animates those (an
+    /// `.animation(value:)` modifier on the container does not).
+    func open() {
+        guard state != .open else { return }
+        withAnimation(NotchMetrics.openAnimation) { state = .open }
+    }
+
+    func close() {
+        guard state != .closed else { return }
+        withAnimation(NotchMetrics.closeAnimation) { state = .closed }
+    }
+
     func toggle() { state == .open ? close() : open() }
 
     /// Re-measure after a display change; the notch height can differ between
