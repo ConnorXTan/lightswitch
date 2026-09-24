@@ -4,9 +4,14 @@ import LightswitchKit
 
 /// The menu bar extra's menu.
 struct StatusMenu: View {
-    @EnvironmentObject private var coordinator: NotchCoordinator
+    @ObservedObject private var store = SessionStore.shared
+    @ObservedObject private var hooks = HooksModel.shared
 
     var body: some View {
+        Text(summary)
+        if !hooks.isInstalled {
+            Button("Install Claude Code Hooks…") { hooks.install() }
+        }
         Button("Open Notch") {
             NotchCoordinator.shared.toggleAll()
         }
@@ -20,6 +25,15 @@ struct StatusMenu: View {
             NSApp.terminate(nil)
         }
         .keyboardShortcut("q")
+    }
+
+    private var summary: String {
+        if !hooks.isInstalled { return "Hooks not installed" }
+        let red = store.sessions.filter { $0.state == .needsYou }.count
+        let n = store.sessions.count
+        var text = n == 1 ? "1 session" : "\(n) sessions"
+        if red > 0 { text += " · \(red) need\(red == 1 ? "s" : "") you" }
+        return text
     }
 }
 

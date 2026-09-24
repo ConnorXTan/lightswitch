@@ -26,17 +26,19 @@ final class NotchCoordinator: ObservableObject {
 
     /// Wired by the app: focus the terminal that owns a session.
     var selectSession: (Session) -> Void = { _ in }
-    /// Wired by the app once the installer exists.
-    var installHooksAction: () -> Void = {}
-
-    private init() {}
+    private init() {
+        HooksModel.shared.$status
+            .map { $0 == .installed }
+            .removeDuplicates()
+            .assign(to: &$hooksInstalled)
+    }
 
     func select(_ session: Session) {
         SessionStore.shared.acknowledge(session.id)
         selectSession(session)
     }
 
-    func installHooks() { installHooksAction() }
+    func installHooks() { HooksModel.shared.install() }
 
     // MARK: Alerts
 
