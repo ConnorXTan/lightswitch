@@ -11,10 +11,13 @@ public struct Session: Identifiable, Codable, Equatable, Hashable {
     /// Set when Claude has been waiting on the user for a while (`idle_prompt`).
     public var idle: Bool
     public var updatedAt: Date
+    /// The session's name as Claude Code shows it: a `/rename`, else the
+    /// title it generated from the conversation. Empty until it has one.
+    public var title: String
 
     public init(id: String, state: SessionState, cwd: String, pid: Int32 = 0,
                 tty: String = "", termProgram: String = "", idle: Bool = false,
-                updatedAt: Date = Date()) {
+                updatedAt: Date = Date(), title: String = "") {
         self.id = id
         self.state = state
         self.cwd = cwd
@@ -23,6 +26,7 @@ public struct Session: Identifiable, Codable, Equatable, Hashable {
         self.termProgram = termProgram
         self.idle = idle
         self.updatedAt = updatedAt
+        self.title = title
     }
 
     enum CodingKeys: String, CodingKey {
@@ -31,6 +35,7 @@ public struct Session: Identifiable, Codable, Equatable, Hashable {
         case termProgram = "term_program"
         case idle
         case updatedAt = "updated_at"
+        case title
     }
 
     public init(from decoder: Decoder) throws {
@@ -47,6 +52,7 @@ public struct Session: Identifiable, Codable, Equatable, Hashable {
         idle = try c.decodeIfPresent(Bool.self, forKey: .idle) ?? false
         let seconds = try c.decodeIfPresent(Double.self, forKey: .updatedAt) ?? 0
         updatedAt = Date(timeIntervalSince1970: seconds)
+        title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -59,6 +65,7 @@ public struct Session: Identifiable, Codable, Equatable, Hashable {
         try c.encode(termProgram, forKey: .termProgram)
         try c.encode(idle, forKey: .idle)
         try c.encode(Int(updatedAt.timeIntervalSince1970), forKey: .updatedAt)
+        try c.encode(title, forKey: .title)
     }
 
     /// The last path component of the working directory: what the list shows.
