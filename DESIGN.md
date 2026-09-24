@@ -367,3 +367,12 @@ rectangles; the install button and the ratio bar are capsules.
 - **Don't** give a surface a shadow at rest; the panel lift and dot glow are opacity 0 until open, hover or pulse.
 - **Don't** use grey for idle or for secondary text on black; use white at the recorded opacity.
 - **Don't** tint chrome with a state colour; red, yellow and green appear on dots, state words and the peek detail only (and, in Settings, `systemRed` for errors and `systemOrange` for the covered sensor).
+
+## Addendum (2026-09-24, projects branch)
+
+The open panel lists sessions grouped by working directory. `ProjectHeader`
+(26 pt: folder name 13/600 white, location 11/400 white-40 only when two
+projects share a name, "N terminals" 11/400 white-40 tabular on the right)
+sits above `SessionRow`s (28 pt, indented 22 pt: dot, "App · tty" 12/500
+white-85, state word, age). Groups are separated by 6 pt; the list scrolls
+past nine rows at a 262 pt cap. The window canvas is 640×360.

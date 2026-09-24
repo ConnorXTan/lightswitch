@@ -6,7 +6,7 @@ import SwiftUI
 enum NotchMetrics {
     /// The transparent canvas each window draws into. Wide enough for the
     /// alert peek, tall enough for the open list plus its shadow.
-    static let windowSize = CGSize(width: 640, height: 280)
+    static let windowSize = CGSize(width: 640, height: 360)
 
     /// Width of the open panel.
     static let openWidth: CGFloat = 400

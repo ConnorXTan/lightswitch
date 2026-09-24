@@ -180,6 +180,12 @@ public final class SessionStore: ObservableObject {
         return out
     }
 
+    /// The open notch's view: one group per working directory, each holding
+    /// its terminals in slot order.
+    public var groups: [ProjectGroup] {
+        ProjectGroup.grouping(sessions)
+    }
+
     /// Sessions beyond the four slots, in order of first appearance.
     public var overflow: [Session] {
         sessions.filter { slots[$0.id] == nil }
