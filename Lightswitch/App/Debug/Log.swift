@@ -13,7 +13,8 @@ enum Log {
     static func note(_ logger: Logger, _ message: String) {
         logger.info("\(message, privacy: .public)")
         if echo {
-            FileHandle.standardError.write(Data("\(message)\n".utf8))
+            let stamp = String(format: "%.3f", Date().timeIntervalSince1970)
+            FileHandle.standardError.write(Data("\(stamp) \(message)\n".utf8))
         }
     }
 }
