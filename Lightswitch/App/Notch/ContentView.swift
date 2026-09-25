@@ -18,7 +18,6 @@ struct ContentView: View {
     /// changes under a still pointer SwiftUI fires a stray mouse-out, and no
     /// mouse-in follows until something else changes. So opening and closing
     /// are decided by where the pointer actually is.
-    @State private var shapeSize: CGSize = .zero
     /// The open panel's last measured height, so the panel's region is
     /// known before it has opened.
     @State private var openHeight: CGFloat = NotchMetrics.windowSize.height
@@ -56,7 +55,6 @@ struct ContentView: View {
                 .onHover(perform: handleHover)
                 .background(GeometryReader { proxy in
                     Color.clear.onChange(of: proxy.size, initial: true) { _, size in
-                        shapeSize = size
                         if vm.isOpen, size.height > vm.closedSize.height { openHeight = size.height }
                     }
                 })
@@ -75,12 +73,15 @@ struct ContentView: View {
         }
     }
 
-    /// Whether the pointer is over the visible shape right now, from its
-    /// real position rather than the last hover event. With `expanded`,
-    /// the region is the open panel's whether or not it is open yet: from
-    /// the first hover the panel's whole area counts, so a hand that moves
-    /// down into it before the delay is up is not treated as leaving.
-    private func pointerInsideShape(expanded: Bool = false) -> Bool {
+    /// The two regions that matter. The small box is the closed shape as
+    /// drawn (notch plus wing, or the peek); the panel is the open shape's
+    /// whole area whether or not it is open right now. Both come from the
+    /// layout's known sizes, not from what is on screen: while the panel is
+    /// shrinking the view is still panel-sized, and that must not count.
+    private enum Region { case smallBox, panel }
+
+    /// Whether the pointer's real screen position is inside a region.
+    private func pointerInside(_ region: Region) -> Bool {
         // The window's frame, or where it would be: the window is centred on
         // the notch at the top of its screen.
         let frame: CGRect
@@ -93,20 +94,21 @@ struct ContentView: View {
         } else {
             return false
         }
-        var size = shapeSize
-        var offset = closedOffset
-        if expanded && !vm.isOpen {
+        let size: CGSize
+        let offset: CGFloat
+        switch region {
+        case .panel:
             size = CGSize(width: NotchMetrics.openWidth, height: openHeight)
             offset = 0
-        } else if size == .zero {
-            // No measurement yet: the layout's known size.
-            if vm.isOpen {
-                size = CGSize(width: NotchMetrics.openWidth, height: NotchMetrics.windowSize.height)
-            } else if coordinator.peek != nil {
-                size = CGSize(width: NotchMetrics.peekWidth, height: vm.closedSize.height)
-            } else {
-                size = CGSize(width: vm.closedSize.width + closedWing, height: vm.closedSize.height)
-            }
+        case .smallBox where coordinator.peek != nil:
+            size = CGSize(width: NotchMetrics.peekWidth, height: vm.closedSize.height)
+            offset = 0
+        case .smallBox where vm.hasNotch:
+            size = CGSize(width: vm.closedSize.width + closedWing, height: vm.closedSize.height)
+            offset = closedWing / 2
+        case .smallBox:
+            size = vm.closedSize
+            offset = 0
         }
         let x = frame.minX + (frame.width - size.width) / 2 + offset
         let rect = CGRect(x: x, y: frame.maxY - size.height, width: size.width, height: size.height)
@@ -153,10 +155,19 @@ struct ContentView: View {
             closeTask?.cancel()
             closeTask = nil
             guard openOnHover, !vm.isOpen, openTask == nil else { return }
+            // Only the small box arms an open. While the panel is shrinking
+            // its old area still reports hovers; coming back into the middle
+            // of that must not reopen it.
+            guard pointerInside(.smallBox) else {
+                Log.note(Log.app, "hover in ignored: not over the small box")
+                return
+            }
             openTask = Task { @MainActor in
                 try? await Task.sleep(for: NotchMetrics.hoverOpenDelay)
                 openTask = nil
-                guard !Task.isCancelled, !vm.isOpen, pointerInsideShape(expanded: true) else { return }
+                // Armed by the small box; from then on the panel's whole
+                // area counts, so a hand moving down into it is fine.
+                guard !Task.isCancelled, !vm.isOpen, pointerInside(.panel) else { return }
                 vm.open()
                 startWatchdog()
             }
@@ -168,8 +179,8 @@ struct ContentView: View {
                 try? await Task.sleep(for: NotchMetrics.hoverCloseDelay)
                 closeTask = nil
                 guard !Task.isCancelled, vm.isOpen else { return }
-                if pointerInsideShape() {
-                    Log.note(Log.app, "hover out ignored: pointer still over the shape")
+                if pointerInside(.panel) {
+                    Log.note(Log.app, "hover out ignored: pointer still over the panel")
                     hovering = true
                     return
                 }
@@ -188,7 +199,7 @@ struct ContentView: View {
             while !Task.isCancelled, vm.isOpen {
                 try? await Task.sleep(for: .milliseconds(250))
                 guard !Task.isCancelled, vm.isOpen else { break }
-                if !pointerInsideShape() {
+                if !pointerInside(.panel) {
                     Log.note(Log.app, "watchdog: pointer is off the panel, closing")
                     vm.close()
                     break
