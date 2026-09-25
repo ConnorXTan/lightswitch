@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:lightswitch}",
+            "name": "Debug Lightswitch",
+            "target": "Lightswitch",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug Lightswitch"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:lightswitch}",
+            "name": "Release Lightswitch",
+            "target": "Lightswitch",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release Lightswitch"
+        }
+    ]
+}
