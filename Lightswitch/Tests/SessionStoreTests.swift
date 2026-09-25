@@ -230,9 +230,10 @@ final class SessionStoreTests: XCTestCase {
 
     func testSessionsGroupByProjectInFirstAppearanceOrder() throws {
         store.projectRoot = { $0 }
-        try write("a", state: "working", cwd: "/Users/connortan/Documents/GitHub/lightswitch", updatedAt: 100)
-        try write("b", state: "needs_you", cwd: "/Users/connortan/MARs/MARS", updatedAt: 200)
-        try write("c", state: "idle", cwd: "/Users/connortan/Documents/GitHub/lightswitch", updatedAt: 300)
+        let home = NSHomeDirectory()
+        try write("a", state: "working", cwd: "\(home)/Documents/GitHub/lightswitch", updatedAt: 100)
+        try write("b", state: "needs_you", cwd: "\(home)/MARs/MARS", updatedAt: 200)
+        try write("c", state: "idle", cwd: "\(home)/Documents/GitHub/lightswitch", updatedAt: 300)
         store.reload()
         let groups = store.groups
         XCTAssertEqual(groups.map(\.name), ["lightswitch", "MARS"])
